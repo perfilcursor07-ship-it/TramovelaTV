@@ -1,0 +1,24 @@
+{
+  "name": "tramovelatv",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "migrate": "npm run migrate -w apps/api",
+    "migrate:rollback": "npm run migrate:rollback -w apps/api",
+    "migrate:status": "npm run migrate:status -w apps/api",
+    "migrate:make": "npm run migrate:make -w apps/api --",
+    "seed": "npm run seed -w apps/api",
+    "build": "npm run build -w apps/api && npm run build -w apps/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

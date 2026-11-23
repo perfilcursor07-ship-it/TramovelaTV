@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "TramaNovela TV",
+    "slug": "tramanovela-tv",
+    "scheme": "tramanovela",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#07070a",
+    "android": {
+      "package": "tv.tramanovela.app",
+      "adaptiveIcon": { "backgroundColor": "#ff2d6f" }
+    },
+    "plugins": ["expo-router", "expo-secure-store", "expo-video"],
+    "extra": {
+      "apiUrl": "http://192.168.0.10:3333"
+    }
+  }
+}

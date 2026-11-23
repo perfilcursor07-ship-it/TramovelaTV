@@ -1,0 +1,50 @@
+import path from 'path';
+import dotenv from 'dotenv';
+
+export const API_ROOT = path.resolve(__dirname, '../..');
+dotenv.config({ path: path.join(API_ROOT, '.env') });
+
+function req(name: string, fallback?: string): string {
+  const v = process.env[name] ?? fallback;
+  if (v === undefined) throw new Error(`Variável de ambiente ausente: ${name}`);
+  return v;
+}
+
+const pagbankEnv = (process.env.PAGBANK_ENV || 'mock') as 'mock' | 'sandbox' | 'production';
+
+export const env = {
+  nodeEnv: req('NODE_ENV', 'development'),
+  port: Number(req('PORT', '3333')),
+  appUrl: req('APP_URL', 'http://localhost:5173'),
+  publicApiUrl: req('PUBLIC_API_URL', 'http://localhost:3333'),
+  jwtSecret: req('JWT_SECRET'),
+  streamSecret: req('STREAM_SECRET'),
+  streamTokenMinutes: Number(req('STREAM_TOKEN_MINUTES', '180')),
+  db: {
+    host: req('DB_HOST', '127.0.0.1'),
+    port: Number(req('DB_PORT', '3306')),
+    user: req('DB_USER', 'root'),
+    password: req('DB_PASSWORD', ''),
+    database: req('DB_NAME', 'tramovelatv'),
+  },
+  pagbank: {
+    env: pagbankEnv,
+    token:
+      pagbankEnv === 'production'
+        ? process.env.PAGBANK_TOKEN_PRODUCTION || ''
+        : process.env.PAGBANK_TOKEN_SANDBOX || '',
+    baseUrl:
+      pagbankEnv === 'production' ? 'https://api.pagbank.com' : 'https://sandbox.api.pagseguro.com',
+    pixExpirationMinutes: Number(req('PIX_EXPIRATION_MINUTES', '30')),
+  },
+  maxVideoSizeMb: Number(req('MAX_VIDEO_SIZE_MB', '2048')),
+  seedAdmin: {
+    name: req('SEED_ADMIN_NAME', 'Administrador'),
+    email: req('SEED_ADMIN_EMAIL', 'admin@novelas.local'),
+    password: req('SEED_ADMIN_PASSWORD', ''),
+  },
+  paths: {
+    videos: path.join(API_ROOT, 'storage', 'videos'),
+    uploads: path.join(API_ROOT, 'public', 'uploads'),
+  },
+};

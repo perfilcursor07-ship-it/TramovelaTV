@@ -82,6 +82,7 @@ const novelSchema = z.object({
   preview_seconds: z.coerce.number().int().min(0).max(600).optional().default(5),
   pack_episodes: z.coerce.number().int().min(0).max(100).optional().default(3),
   pack_price_cents: z.coerce.number().int().min(0).optional().default(599),
+  pack_compare_cents: z.coerce.number().int().min(0).optional().default(0),
   status: z.enum(['draft', 'published']),
   featured: z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])]).optional(),
 });
@@ -119,6 +120,7 @@ function novelPayload(data: z.infer<typeof novelSchema>) {
     preview_seconds: data.preview_seconds,
     pack_episodes: data.pack_episodes,
     pack_price_cents: data.pack_price_cents,
+    pack_compare_cents: data.pack_compare_cents > data.pack_price_cents ? data.pack_compare_cents : 0,
     status: data.status,
     featured: data.featured === true || data.featured === 'true' || data.featured === '1',
   };

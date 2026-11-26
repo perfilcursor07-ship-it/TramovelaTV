@@ -30,6 +30,11 @@ export default function Paywall({
   const from = unlockedUntil + 1;
   const to = unlockedUntil + packEps;
   const fullCheaper = hasPack && novel.effective_price_cents <= novel.pack_price_cents;
+  // desconto do pacote sobre o preço "de" configurado no painel
+  const off =
+    novel.pack_compare_cents > novel.pack_price_cents
+      ? Math.round((1 - novel.pack_price_cents / novel.pack_compare_cents) * 100)
+      : 0;
 
   return (
     <div className={compact ? 'relative' : 'absolute inset-0 z-30 flex flex-col justify-end bg-gradient-to-t from-black via-black/85 to-black/30 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]'}>
@@ -42,9 +47,31 @@ export default function Paywall({
             <h2 className="mt-3 text-2xl font-extrabold leading-tight">Quer saber o que acontece?</h2>
             <p className="mt-1.5 text-sm text-white/70">
               Assista agora {packEps === 1 ? `o episódio ${from}` : `mais ${packEps} episódios`}
-              {packEps > 1 && <span className="text-white/45"> (EP {from} ao {to})</span>} por apenas
+              {packEps > 1 && <span className="text-white/45"> (EP {from} ao {to})</span>}
             </p>
-            <p className="mt-2 text-5xl font-black tracking-tight text-white">{formatBRL(novel.pack_price_cents)}</p>
+
+            {off > 0 ? (
+              <div className="relative mt-4 overflow-hidden rounded-2xl border-2 border-yellow-400/70 bg-gradient-to-br from-yellow-400/15 via-orange-500/10 to-brand-500/15 px-4 pb-4 pt-9">
+                <span className="absolute -right-8 top-3 rotate-45 bg-yellow-400 px-9 py-0.5 text-[10px] font-black uppercase text-black">Hoje</span>
+                <span className="absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap rounded-b-xl bg-yellow-400 px-4 py-1 text-sm font-black uppercase tracking-wide text-black shadow-lg">
+                  {off}% de desconto
+                </span>
+                <p className="text-sm text-white/60">
+                  de <span className="font-semibold text-white/60 line-through decoration-red-500 decoration-2">{formatBRL(novel.pack_compare_cents)}</span> por apenas
+                </p>
+                <p className="text-5xl font-black tracking-tight text-yellow-300 drop-shadow-[0_2px_12px_rgba(250,204,21,.35)]">
+                  {formatBRL(novel.pack_price_cents)}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-emerald-300">
+                  Você economiza {formatBRL(novel.pack_compare_cents - novel.pack_price_cents)}
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-white/70">por apenas</p>
+                <p className="mt-1 text-5xl font-black tracking-tight text-white">{formatBRL(novel.pack_price_cents)}</p>
+              </>
+            )}
 
             <button
               onClick={() => onUnlock('pack')}

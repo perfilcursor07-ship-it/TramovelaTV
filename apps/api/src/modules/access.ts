@@ -55,6 +55,7 @@ export function serializeNovel(n: any, extra: Record<string, unknown> = {}) {
     preview_seconds: Number(n.preview_seconds ?? 0),
     pack_episodes: Number(n.pack_episodes ?? 0),
     pack_price_cents: Number(n.pack_price_cents ?? 0),
+    pack_compare_cents: Number(n.pack_compare_cents ?? 0),
     featured: !!n.featured,
     views: n.views,
     episodes_count: n.episodes_count != null ? Number(n.episodes_count) : undefined,

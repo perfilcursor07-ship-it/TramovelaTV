@@ -30,6 +30,8 @@ export interface Novel {
   /** pacote promocional: quantos episódios libera e o preço */
   pack_episodes: number;
   pack_price_cents: number;
+  /** preço "de" (riscado) do pacote; 0 = sem desconto exibido */
+  pack_compare_cents: number;
   featured: boolean;
   views: number;
   episodes_count?: number;

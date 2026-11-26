@@ -43,6 +43,7 @@ export default function AdminNovelEdit() {
     preview: '5',
     packEps: '3',
     packPrice: '5,99',
+    packCompare: '59,90',
     status: 'draft' as 'draft' | 'published',
     featured: false,
   });
@@ -66,6 +67,7 @@ export default function AdminNovelEdit() {
       preview: String(n.preview_seconds ?? 0),
       packEps: String(n.pack_episodes ?? 0),
       packPrice: fromCents(n.pack_price_cents),
+      packCompare: n.pack_compare_cents ? fromCents(n.pack_compare_cents) : '',
       status: n.status,
       featured: n.featured,
     });
@@ -94,6 +96,7 @@ export default function AdminNovelEdit() {
       fd.append('preview_seconds', f.preview || '0');
       fd.append('pack_episodes', f.packEps || '0');
       fd.append('pack_price_cents', String(toCents(f.packPrice || '0')));
+      fd.append('pack_compare_cents', String(toCents(f.packCompare || '0')));
       fd.append('status', f.status);
       fd.append('featured', String(f.featured));
       if (cover) fd.append('cover', cover);
@@ -136,6 +139,7 @@ export default function AdminNovelEdit() {
     preview_seconds: Number(f.preview) || 0,
     pack_episodes: Number(f.packEps) || 0,
     pack_price_cents: toCents(f.packPrice || '0'),
+    pack_compare_cents: toCents(f.packCompare || '0'),
     featured: f.featured,
     views: 0,
     episodes_count: data?.episodes.length ?? 0,
@@ -210,7 +214,7 @@ export default function AdminNovelEdit() {
 
             <div>
               <p className="mb-2 text-xs font-semibold text-white/70">2. Promoção (pacote de episódios)</p>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className="label">Episódios por pacote</label>
                   <input className="input" type="number" min={0} max={100} value={f.packEps} onChange={set('packEps')} />
@@ -218,6 +222,15 @@ export default function AdminNovelEdit() {
                 <div>
                   <label className="label">Preço do pacote (R$)</label>
                   <input className="input" inputMode="decimal" value={f.packPrice} onChange={set('packPrice')} disabled={!Number(f.packEps)} />
+                </div>
+                <div>
+                  <label className="label">Preço “de” riscado (R$)</label>
+                  <input className="input" inputMode="decimal" value={f.packCompare} onChange={set('packCompare')} placeholder="vazio = sem desconto" disabled={!Number(f.packEps)} />
+                  {toCents(f.packCompare || '0') > toCents(f.packPrice || '0') && (
+                    <p className="mt-1 text-xs font-semibold text-yellow-300">
+                      Mostra “{Math.round((1 - toCents(f.packPrice || '0') / toCents(f.packCompare || '0')) * 100)}% de desconto”
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

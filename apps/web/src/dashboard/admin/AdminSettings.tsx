@@ -15,7 +15,8 @@ const fields: { key: string; label: string; textarea?: boolean; hint?: string }[
   { key: 'paywall_subtitle', label: 'Texto do paywall', textarea: true },
   { key: 'paywall_cta', label: 'Texto do botão' },
   { key: 'paywall_benefits', label: 'Benefícios (um por linha)', textarea: true },
-  { key: 'support_whatsapp', label: 'WhatsApp de suporte', hint: 'Somente números com DDD' },
+  { key: 'support_whatsapp', label: 'WhatsApp de suporte', hint: 'Somente números com DDD. Aparece no botão de contato.' },
+  { key: 'support_email', label: 'E-mail de suporte', hint: 'Aparece na página de contato.' },
 ];
 
 export default function AdminSettings() {

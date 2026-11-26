@@ -7,6 +7,7 @@ import { FullScreenLoader } from './components/ui';
 import Home from './pages/Home';
 import Explore from './pages/Explore';
 import NovelPage from './pages/NovelPage';
+import Contact from './pages/Contact';
 import Watch from './pages/Watch';
 import { Login, Register } from './pages/Auth';
 import NotFound from './pages/NotFound';
@@ -23,6 +24,7 @@ import AdminOrders from './dashboard/admin/AdminOrders';
 import AdminUsers from './dashboard/admin/AdminUsers';
 import AdminComments from './dashboard/admin/AdminComments';
 import AdminSettings from './dashboard/admin/AdminSettings';
+import AdminReports from './dashboard/admin/AdminReports';
 
 function RequireAuth({ children, admin }: { children: ReactNode; admin?: boolean }) {
   const { user, loading } = useAuth();
@@ -45,6 +47,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="explorar" element={<Explore />} />
         <Route path="novela/:slug" element={<NovelPage />} />
+        <Route path="contato" element={<Contact />} />
         <Route path="entrar" element={<Login />} />
         <Route path="cadastro" element={<Register />} />
       </Route>
@@ -71,6 +74,7 @@ export default function App() {
         <Route path="admin/pedidos" element={<RequireAuth admin><AdminOrders /></RequireAuth>} />
         <Route path="admin/usuarios" element={<RequireAuth admin><AdminUsers /></RequireAuth>} />
         <Route path="admin/comentarios" element={<RequireAuth admin><AdminComments /></RequireAuth>} />
+        <Route path="admin/problemas" element={<RequireAuth admin><AdminReports /></RequireAuth>} />
         <Route path="admin/configuracoes" element={<RequireAuth admin><AdminSettings /></RequireAuth>} />
       </Route>
 

@@ -8,6 +8,7 @@ import { ApiError, compactNumber, formatBRL, type NovelDetail } from '@novelas/s
 import { api, media } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import CheckoutModal from '../components/CheckoutModal';
+import ShareSheet from '../components/ShareSheet';
 import { NovelCard } from '../components/NovelCard';
 import { Empty, FullScreenLoader, useCountdown } from '../components/ui';
 
@@ -22,6 +23,7 @@ export default function NovelPage() {
   const [checkout, setCheckout] = useState(false);
   const [range, setRange] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['novel', slug], queryFn: () => api.catalog.novel(slug) });
   const genre = data?.novel.genre || undefined;
   const { data: related } = useQuery({
@@ -77,18 +79,7 @@ export default function NovelPage() {
     toast.success(r.favorite ? 'Adicionada à sua lista' : 'Removida da sua lista');
   };
 
-  const share = async () => {
-    const url = `${window.location.origin}/novela/${slug}`;
-    try {
-      if (navigator.share) await navigator.share({ title: novel.title, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success('Link copiado!');
-      }
-    } catch {
-      /* cancelado */
-    }
-  };
+  const share = () => setShareOpen(true);
 
   const buy = () => (user ? setCheckout(true) : nav(`/entrar?next=${encodeURIComponent(`/novela/${slug}?comprar=1`)}`));
 
@@ -276,6 +267,13 @@ export default function NovelPage() {
       )}
       {!relatedList.length && <div className="pb-24" />}
 
+      <ShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={novel.title}
+        url={`${window.location.origin}/assistir/${slug}/1`}
+        novelSlug={slug}
+      />
       <CheckoutModal novel={novel} open={checkout} onClose={() => setCheckout(false)} onPaid={() => refetch()} />
     </div>
   );

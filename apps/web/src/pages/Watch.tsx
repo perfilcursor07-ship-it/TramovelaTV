@@ -25,6 +25,7 @@ import { api, media } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import Paywall, { type UnlockKind } from '../components/Paywall';
 import CheckoutModal from '../components/CheckoutModal';
+import ShareSheet from '../components/ShareSheet';
 import { FullScreenLoader, Spinner } from '../components/ui';
 
 export default function Watch() {
@@ -166,7 +167,7 @@ export default function Watch() {
   // rolar / deslizar troca de episódio (estilo feed)
   const wheelLock = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
-    if (sheet || checkout || Math.abs(e.deltaY) < 30 || Date.now() < wheelLock.current) return;
+    if (sheet || checkout || shareOpen || Math.abs(e.deltaY) < 30 || Date.now() < wheelLock.current) return;
     wheelLock.current = Date.now() + 900;
     if (e.deltaY > 0 && next) goTo(next.number);
     if (e.deltaY < 0 && prev) goTo(prev.number);
@@ -174,7 +175,7 @@ export default function Watch() {
   const touchY = useRef<number | null>(null);
   const onTouchStart = (e: React.TouchEvent) => (touchY.current = e.touches[0].clientY);
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchY.current == null || sheet) return;
+    if (touchY.current == null || sheet || shareOpen) return;
     const dy = touchY.current - e.changedTouches[0].clientY;
     touchY.current = null;
     if (dy > 80 && next) goTo(next.number);
@@ -232,18 +233,8 @@ export default function Watch() {
     );
   };
 
-  const share = async () => {
-    const url = `${window.location.origin}/assistir/${slug}/1`;
-    try {
-      if (navigator.share) await navigator.share({ title: data?.novel.title, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success('Link copiado!');
-      }
-    } catch {
-      /* cancelado */
-    }
-  };
+  const [shareOpen, setShareOpen] = useState(false);
+  const share = () => setShareOpen(true);
 
   if (isLoading) return <div className="fixed inset-0 bg-black"><FullScreenLoader /></div>;
   if (error || !data) {
@@ -437,6 +428,15 @@ export default function Watch() {
           <ChevronDown className="h-6 w-6" />
         </button>
       </div>
+
+      <ShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={novel.title}
+        url={`${window.location.origin}/assistir/${slug}/1`}
+        novelSlug={slug}
+        episodeNumber={episode?.number}
+      />
 
       <CheckoutModal
         novel={novel}

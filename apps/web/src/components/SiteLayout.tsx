@@ -89,7 +89,10 @@ export default function SiteLayout() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 text-sm text-white/40">
           <Logo className="opacity-70" />
           <p>{settings.site_tagline}</p>
-          <p>© {new Date().getFullYear()} {settings.site_name}</p>
+          <div className="flex items-center gap-5">
+            <Link to="/contato" className="hover:text-white">Contato e ajuda</Link>
+            <span>© {new Date().getFullYear()} {settings.site_name}</span>
+          </div>
         </div>
       </footer>
 

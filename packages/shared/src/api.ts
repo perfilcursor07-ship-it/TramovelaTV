@@ -8,6 +8,8 @@ import type {
   NovelDetail,
   Order,
   PublicSettings,
+  Report,
+  ReportType,
   User,
 } from './types';
 
@@ -99,6 +101,17 @@ export function createApi(opts: ApiOptions) {
         put<{ user: User }>('/me/profile', p),
     },
 
+    support: {
+      report: (d: {
+        type: ReportType;
+        message: string;
+        contact?: string;
+        novel_slug?: string;
+        episode_number?: number;
+        page_url?: string;
+      }) => post<{ id: number }>('/reports', d),
+    },
+
     orders: {
       create: (novel_id: number, cpf?: string, phone?: string, kind: 'full' | 'pack' = 'full') =>
         post<Order>('/orders', { novel_id, cpf, phone, kind }),
@@ -117,6 +130,8 @@ export function createApi(opts: ApiOptions) {
       deleteEpisode: (id: number) => del<void>(`/admin/episodes/${id}`),
       orders: (p: { status?: string; search?: string } = {}) => get<{ data: Order[] }>(`/admin/orders${qs(p)}`),
       refreshOrder: (id: number) => post<Order>(`/admin/orders/${id}/refresh`),
+      reports: (status = 'open') => get<{ data: Report[]; open: number }>(`/admin/reports${qs({ status })}`),
+      setReportStatus: (id: number, status: 'open' | 'resolved') => put<{ ok: boolean }>(`/admin/reports/${id}`, { status }),
       users: (search?: string) => get<{ data: (User & { purchases: number })[] }>(`/admin/users${qs({ search })}`),
       setRole: (id: number, role: 'admin' | 'user') => put<{ ok: true }>(`/admin/users/${id}`, { role }),
       grant: (id: number, novel_id: number) => post<{ ok: true }>(`/admin/users/${id}/grant`, { novel_id }),

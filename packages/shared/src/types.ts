@@ -120,6 +120,7 @@ export interface PublicSettings {
   paywall_cta: string;
   paywall_benefits: string[];
   support_whatsapp: string;
+  support_email: string;
   payment_mode: 'mock' | 'sandbox' | 'production';
 }
 
@@ -156,4 +157,30 @@ export interface AdminStats {
   series: { day: string; total_cents: number; orders: number }[];
   top_novels: { id: number; title: string; slug: string; cover_url: string | null; views: number; sales: number; revenue_cents: number }[];
   recent_orders: Order[];
+}
+
+export type ReportType = 'video' | 'audio' | 'payment' | 'account' | 'other';
+
+export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
+  video: 'O vídeo não carrega ou trava',
+  audio: 'Problema com o som',
+  payment: 'Paguei e não liberou',
+  account: 'Problema com minha conta',
+  other: 'Outro problema',
+};
+
+export interface Report {
+  id: number;
+  user_id: number | null;
+  user_name: string | null;
+  user_email: string | null;
+  type: ReportType;
+  message: string;
+  contact: string | null;
+  novel_slug: string | null;
+  episode_number: number | null;
+  page_url: string | null;
+  user_agent: string | null;
+  status: 'open' | 'resolved';
+  created_at: string;
 }

@@ -11,6 +11,7 @@ const fallback: PublicSettings = {
   paywall_cta: 'DESBLOQUEAR AGORA',
   paywall_benefits: ['Todos os episódios liberados', 'Acesso vitalício', 'Pix aprovado na hora'],
   support_whatsapp: '',
+  support_email: '',
   payment_mode: 'mock',
 };
 

@@ -15,6 +15,7 @@ import { socialRoutes } from './modules/social/social.routes';
 import { meRoutes } from './modules/me/me.routes';
 import { ordersRoutes } from './modules/payments/orders.routes';
 import { adminRoutes } from './modules/admin/admin.routes';
+import { reportsRoutes } from './modules/support/reports.routes';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api', streamRoutes);
   app.use('/api', socialRoutes);
   app.use('/api', ordersRoutes);
+  app.use('/api', reportsRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api', meRoutes);
 

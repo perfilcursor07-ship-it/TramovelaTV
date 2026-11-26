@@ -17,6 +17,8 @@ import {
   UserCircle,
   Users,
   X,
+  Flag,
+  LifeBuoy,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { Logo } from '../components/ui';
@@ -27,6 +29,7 @@ const userItems = [
   { to: '/painel/favoritos', label: 'Minha lista', icon: Bookmark },
   { to: '/painel/pedidos', label: 'Meus pedidos', icon: ShoppingBag },
   { to: '/painel/perfil', label: 'Perfil', icon: UserCircle },
+  { to: '/contato', label: 'Ajuda e contato', icon: LifeBuoy },
 ];
 
 const adminItems = [
@@ -35,6 +38,7 @@ const adminItems = [
   { to: '/painel/admin/pedidos', label: 'Pedidos', icon: Receipt },
   { to: '/painel/admin/usuarios', label: 'Usuários', icon: Users },
   { to: '/painel/admin/comentarios', label: 'Comentários', icon: MessageSquare },
+  { to: '/painel/admin/problemas', label: 'Problemas', icon: Flag },
   { to: '/painel/admin/configuracoes', label: 'Configurações', icon: Settings },
 ];
 

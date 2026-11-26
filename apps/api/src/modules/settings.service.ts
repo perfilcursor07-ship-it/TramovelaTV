@@ -10,6 +10,7 @@ export const SETTING_KEYS = [
   'paywall_cta',
   'paywall_benefits',
   'support_whatsapp',
+  'support_email',
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

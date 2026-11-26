@@ -4,7 +4,7 @@ import { db } from '../../db/knex';
 import { env } from '../../config/env';
 import { authOptional } from '../../middleware/auth';
 import { asyncHandler, HttpError, toInt } from '../../utils/http';
-import { hasNovelAccess, isFreeEpisode, previewSecondsFor, publishedNovelsQuery, serializeNovel } from '../access';
+import { getNovelAccess, isFreeEpisode, previewSecondsFor, publishedNovelsQuery, serializeNovel } from '../access';
 import { publicSettings } from '../settings.service';
 
 export const catalogRoutes = Router();
@@ -101,12 +101,13 @@ catalogRoutes.get(
     if (!novel || (novel.status !== 'published' && req.user?.role !== 'admin')) {
       throw new HttpError(404, 'Novela não encontrada.');
     }
-    const access = await hasNovelAccess(req.user, novel.id);
+    const acc = await getNovelAccess(req.user, novel);
+    const access = acc.full;
 
     const episodes = await db('episodes as e')
       .where('e.novel_id', novel.id)
       .orderBy('e.number')
-      .select('e.id', 'e.number', 'e.title', 'e.thumbnail_url', 'e.duration_seconds', db.raw('e.video_path is not null as has_video'))
+      .select('e.id', 'e.number', 'e.title', 'e.thumbnail_url', 'e.duration_seconds', 'e.preview_seconds', db.raw('e.video_path is not null as has_video'))
       .select(db.raw('(select count(*) from episode_likes l where l.episode_id = e.id) as likes_count'))
       .select(db.raw('(select count(*) from comments c where c.episode_id = e.id) as comments_count'));
 
@@ -144,6 +145,7 @@ catalogRoutes.get(
         status: novel.status,
       }),
       has_access: access,
+      unlocked_until: access ? null : acc.until,
       favorite,
       last_episode: lastEpisode,
       episodes: episodes.map((e) => ({
@@ -154,9 +156,8 @@ catalogRoutes.get(
         duration_seconds: e.duration_seconds,
         has_video: !!Number(e.has_video),
         free: isFreeEpisode(novel, e),
-        locked: !access && !isFreeEpisode(novel, e),
-        preview_seconds:
-          !access && !isFreeEpisode(novel, e) && Number(e.has_video) ? previewSecondsFor(novel, e) : 0,
+        locked: e.number > acc.until,
+        preview_seconds: e.number > acc.until && Number(e.has_video) ? previewSecondsFor(novel, e, acc.until) : 0,
         likes_count: Number(e.likes_count),
         comments_count: Number(e.comments_count),
         liked: liked.has(e.id),
@@ -173,14 +174,14 @@ catalogRoutes.get(
     const ep = await db('episodes as e')
       .join('novels as n', 'n.id', 'e.novel_id')
       .where('e.id', toInt(req.params.id))
-      .first('e.*', 'n.status as novel_status', 'n.free_episodes', 'n.preview_seconds');
+      .first('e.*', 'n.status as novel_status', 'n.free_episodes', 'n.preview_seconds as novel_preview_seconds');
     if (!ep || (ep.novel_status !== 'published' && req.user?.role !== 'admin')) {
       throw new HttpError(404, 'Episódio não encontrado.');
     }
-    const free = isFreeEpisode({ free_episodes: ep.free_episodes }, ep);
+    const acc = await getNovelAccess(req.user, { id: ep.novel_id, free_episodes: ep.free_episodes });
     let preview = 0;
-    if (!free && !(await hasNovelAccess(req.user, ep.novel_id))) {
-      preview = previewSecondsFor(ep, ep);
+    if (ep.number > acc.until) {
+      preview = previewSecondsFor({ preview_seconds: ep.novel_preview_seconds }, ep, acc.until);
       if (!preview) throw new HttpError(402, 'Episódio bloqueado. Desbloqueie a novela para continuar.', 'PAYWALL');
     }
     if (!ep.video_path) throw new HttpError(404, 'O vídeo deste episódio ainda não foi enviado.', 'NO_VIDEO');

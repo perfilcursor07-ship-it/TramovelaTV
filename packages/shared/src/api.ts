@@ -100,7 +100,8 @@ export function createApi(opts: ApiOptions) {
     },
 
     orders: {
-      create: (novel_id: number, cpf?: string, phone?: string) => post<Order>('/orders', { novel_id, cpf, phone }),
+      create: (novel_id: number, cpf?: string, phone?: string, kind: 'full' | 'pack' = 'full') =>
+        post<Order>('/orders', { novel_id, cpf, phone, kind }),
       get: (id: number) => get<Order>(`/orders/${id}`),
       simulatePay: (id: number) => post<Order>(`/orders/${id}/simulate-pay`),
     },

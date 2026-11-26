@@ -27,6 +27,9 @@ export interface Novel {
   free_episodes: number;
   /** segundos de prévia do EP 1 antes do pagamento (0 = sem prévia) */
   preview_seconds: number;
+  /** pacote promocional: quantos episódios libera e o preço */
+  pack_episodes: number;
+  pack_price_cents: number;
   featured: boolean;
   views: number;
   episodes_count?: number;
@@ -55,6 +58,8 @@ export interface Episode {
 export interface NovelDetail {
   novel: Novel;
   has_access: boolean;
+  /** até qual episódio o usuário pode assistir (null = novela completa) */
+  unlocked_until: number | null;
   favorite: boolean;
   last_episode: number | null;
   episodes: Episode[];
@@ -86,6 +91,8 @@ export interface Order {
   novel_title: string;
   novel_slug: string;
   novel_cover: string | null;
+  kind: 'full' | 'pack';
+  episodes_unlocked: number | null;
   user_name?: string;
   user_email?: string;
   amount_cents: number;
@@ -124,6 +131,8 @@ export interface AdminEpisode {
   title: string | null;
   thumbnail_url: string | null;
   duration_seconds: number | null;
+  /** null = usa o padrão da novela */
+  preview_seconds: number | null;
   has_video: boolean;
   video_size: number | null;
 }

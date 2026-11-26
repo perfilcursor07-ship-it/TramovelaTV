@@ -78,8 +78,10 @@ const novelSchema = z.object({
   price_cents: z.coerce.number().int().min(100, 'Preço mínimo R$ 1,00'),
   promo_price_cents: z.union([z.literal(''), z.coerce.number().int().min(100)]).optional(),
   promo_ends_at: z.string().optional(),
-  free_episodes: z.coerce.number().int().min(0).max(500),
-  preview_seconds: z.coerce.number().int().min(0).max(600).optional().default(30),
+  free_episodes: z.coerce.number().int().min(0).max(500).optional().default(1),
+  preview_seconds: z.coerce.number().int().min(0).max(600).optional().default(5),
+  pack_episodes: z.coerce.number().int().min(0).max(100).optional().default(3),
+  pack_price_cents: z.coerce.number().int().min(0).optional().default(599),
   status: z.enum(['draft', 'published']),
   featured: z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])]).optional(),
 });
@@ -104,6 +106,7 @@ async function uniqueSlug(base: string, ignoreId?: number) {
 function novelPayload(data: z.infer<typeof novelSchema>) {
   const promo = data.promo_price_cents === '' || data.promo_price_cents == null ? null : data.promo_price_cents;
   if (promo != null && promo >= data.price_cents) throw new HttpError(422, 'O preço promocional deve ser menor que o preço normal.');
+  if (data.pack_episodes > 0 && data.pack_price_cents < 100) throw new HttpError(422, 'O preço do pacote deve ser de pelo menos R$ 1,00.');
   return {
     title: data.title,
     synopsis: data.synopsis || null,
@@ -114,6 +117,8 @@ function novelPayload(data: z.infer<typeof novelSchema>) {
     promo_ends_at: promo != null && data.promo_ends_at ? new Date(data.promo_ends_at) : null,
     free_episodes: data.free_episodes,
     preview_seconds: data.preview_seconds,
+    pack_episodes: data.pack_episodes,
+    pack_price_cents: data.pack_price_cents,
     status: data.status,
     featured: data.featured === true || data.featured === 'true' || data.featured === '1',
   };
@@ -159,6 +164,7 @@ adminRoutes.get(
         title: e.title,
         thumbnail_url: e.thumbnail_url,
         duration_seconds: e.duration_seconds,
+        preview_seconds: e.preview_seconds ?? null,
         has_video: !!e.video_path,
         video_size: e.video_size ? Number(e.video_size) : null,
       })),
@@ -289,6 +295,11 @@ adminRoutes.put(
       upd.number = number;
     }
     if (req.body.duration_seconds) upd.duration_seconds = toInt(req.body.duration_seconds) || null;
+    if (req.body.preview_seconds !== undefined) {
+      // vazio = usar o padrão da novela
+      const v = String(req.body.preview_seconds).trim();
+      upd.preview_seconds = v === '' ? null : Math.min(600, Math.max(0, toInt(v, 0)));
+    }
     if (video) {
       removeVideo(ep.video_path);
       Object.assign(upd, { video_path: video.filename, video_mime: video.mimetype, video_size: video.size });

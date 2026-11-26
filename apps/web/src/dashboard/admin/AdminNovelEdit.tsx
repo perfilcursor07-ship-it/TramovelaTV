@@ -39,8 +39,10 @@ export default function AdminNovelEdit() {
     price: '19,90',
     promo: '',
     promoEnds: '',
-    free: '0',
-    preview: '30',
+    free: '1',
+    preview: '5',
+    packEps: '3',
+    packPrice: '5,99',
     status: 'draft' as 'draft' | 'published',
     featured: false,
   });
@@ -62,6 +64,8 @@ export default function AdminNovelEdit() {
       promoEnds: toLocalInput(n.raw_promo_ends_at),
       free: String(n.free_episodes),
       preview: String(n.preview_seconds ?? 0),
+      packEps: String(n.pack_episodes ?? 0),
+      packPrice: fromCents(n.pack_price_cents),
       status: n.status,
       featured: n.featured,
     });
@@ -88,6 +92,8 @@ export default function AdminNovelEdit() {
       fd.append('promo_ends_at', f.promo && f.promoEnds ? new Date(f.promoEnds).toISOString() : '');
       fd.append('free_episodes', f.free || '0');
       fd.append('preview_seconds', f.preview || '0');
+      fd.append('pack_episodes', f.packEps || '0');
+      fd.append('pack_price_cents', String(toCents(f.packPrice || '0')));
       fd.append('status', f.status);
       fd.append('featured', String(f.featured));
       if (cover) fd.append('cover', cover);
@@ -128,6 +134,8 @@ export default function AdminNovelEdit() {
     effective_price_cents: f.promo ? toCents(f.promo) : toCents(f.price),
     free_episodes: Number(f.free) || 0,
     preview_seconds: Number(f.preview) || 0,
+    pack_episodes: Number(f.packEps) || 0,
+    pack_price_cents: toCents(f.packPrice || '0'),
     featured: f.featured,
     views: 0,
     episodes_count: data?.episodes.length ?? 0,
@@ -183,36 +191,65 @@ export default function AdminNovelEdit() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-brand-500/25 bg-brand-500/[.06] p-4">
-            <p className="mb-3 text-sm font-bold text-brand-400">💰 Venda e paywall</p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <div>
-                <label className="label">Prévia do EP 1 (seg)</label>
-                <input className="input" type="number" min={0} max={600} value={f.preview} onChange={set('preview')} />
-              </div>
-              <div>
-                <label className="label">Preço (R$)</label>
-                <input className="input" inputMode="decimal" value={f.price} onChange={set('price')} required />
-              </div>
-              <div>
-                <label className="label">Preço promo (R$)</label>
-                <input className="input" inputMode="decimal" value={f.promo} onChange={set('promo')} placeholder="opcional" />
-              </div>
-              <div>
-                <label className="label">Promo até</label>
-                <input className="input" type="datetime-local" value={f.promoEnds} onChange={set('promoEnds')} disabled={!f.promo} />
-              </div>
-              <div>
-                <label className="label">Episódios grátis (opcional)</label>
-                <input className="input" type="number" min={0} value={f.free} onChange={set('free')} />
+          <div className="space-y-4 rounded-2xl border border-brand-500/25 bg-brand-500/[.06] p-4">
+            <p className="text-sm font-bold text-brand-400">💰 Funil de venda</p>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold text-white/70">1. Parte grátis</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label">Episódios grátis (inteiros)</label>
+                  <input className="input" type="number" min={0} value={f.free} onChange={set('free')} />
+                </div>
+                <div>
+                  <label className="label">Segundos grátis do episódio seguinte</label>
+                  <input className="input" type="number" min={0} max={600} value={f.preview} onChange={set('preview')} />
+                </div>
               </div>
             </div>
-            <p className="mt-3 text-xs text-white/50">
+
+            <div>
+              <p className="mb-2 text-xs font-semibold text-white/70">2. Promoção (pacote de episódios)</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label">Episódios por pacote</label>
+                  <input className="input" type="number" min={0} max={100} value={f.packEps} onChange={set('packEps')} />
+                </div>
+                <div>
+                  <label className="label">Preço do pacote (R$)</label>
+                  <input className="input" inputMode="decimal" value={f.packPrice} onChange={set('packPrice')} disabled={!Number(f.packEps)} />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold text-white/70">3. Novela completa</p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="label">Preço (R$)</label>
+                  <input className="input" inputMode="decimal" value={f.price} onChange={set('price')} required />
+                </div>
+                <div>
+                  <label className="label">Preço promo (R$)</label>
+                  <input className="input" inputMode="decimal" value={f.promo} onChange={set('promo')} placeholder="opcional" />
+                </div>
+                <div>
+                  <label className="label">Promo até</label>
+                  <input className="input" type="datetime-local" value={f.promoEnds} onChange={set('promoEnds')} disabled={!f.promo} />
+                </div>
+              </div>
+            </div>
+
+            <p className="rounded-xl bg-black/20 p-3 text-xs leading-relaxed text-white/60">
+              <b className="text-white/80">Como fica para o espectador:</b>{' '}
+              {Number(f.free) > 0 ? `assiste ${Number(f.free) === 1 ? 'o EP 1' : `do EP 1 ao ${f.free}`} inteiro, ` : ''}
               {Number(f.preview) > 0
-                ? `O episódio 1 toca ${f.preview} segundos e depois aparece a tela de pagamento.`
-                : 'Sem prévia: a tela de pagamento aparece direto.'}{' '}
-              {Number(f.free) > 0 && `Os primeiros ${f.free} episódios ficam liberados inteiros. `}
-              Com “Promo até” preenchido, aparece uma contagem regressiva.
+                ? `passa sozinho para o EP ${Number(f.free) + 1}, assiste ${f.preview} segundos e aparece a tela de Pix`
+                : `ao chegar no EP ${Number(f.free) + 1} já aparece a tela de Pix`}
+              {Number(f.packEps) > 0
+                ? ` com a promoção “mais ${f.packEps} episódios por R$ ${f.packPrice}”. Depois do pacote, o ciclo se repete no episódio seguinte.`
+                : ` para liberar a novela completa.`}{' '}
+              Cada episódio pode ter seus próprios segundos grátis na lista de episódios abaixo.
             </p>
           </div>
 
@@ -251,13 +288,19 @@ export default function AdminNovelEdit() {
           <div className="relative mx-auto aspect-[9/16] w-full max-w-[320px] overflow-hidden rounded-3xl bg-ink-800 ring-1 ring-white/10">
             {coverPreview && <img src={coverPreview} alt="" className="absolute inset-0 h-full w-full object-cover" />}
             <div className="pointer-events-none origin-top scale-[.92]">
-              <Paywall novel={previewNovel} episodeNumber={(Number(f.free) || 0) + 1} onUnlock={() => undefined} compact />
+              <Paywall
+                novel={previewNovel}
+                unlockedUntil={Number(f.free) || 0}
+                totalEpisodes={Math.max(data?.episodes.length ?? 0, (Number(f.free) || 0) + (Number(f.packEps) || 0) + 1)}
+                onUnlock={() => undefined}
+                compact
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {!isNew && data && <EpisodesManager novelId={Number(id)} episodes={data.episodes} freeCount={Number(f.free) || 0} />}
+      {!isNew && data && <EpisodesManager novelId={Number(id)} episodes={data.episodes} freeCount={Number(f.free) || 0} defaultPreview={Number(f.preview) || 0} />}
     </div>
   );
 }
@@ -281,7 +324,17 @@ function ImagePick({ label, preview, onPick, aspect }: { label: string; preview:
 
 type QueueItem = { name: string; pct: number; status: 'wait' | 'up' | 'ok' | 'err'; error?: string };
 
-function EpisodesManager({ novelId, episodes, freeCount }: { novelId: number; episodes: AdminEpisode[]; freeCount: number }) {
+function EpisodesManager({
+  novelId,
+  episodes,
+  freeCount,
+  defaultPreview,
+}: {
+  novelId: number;
+  episodes: AdminEpisode[];
+  freeCount: number;
+  defaultPreview: number;
+}) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -355,7 +408,7 @@ function EpisodesManager({ novelId, episodes, freeCount }: { novelId: number; ep
       ) : (
         <div className="space-y-2">
           {episodes.map((e) => (
-            <EpisodeRow key={e.id} ep={e} free={e.number <= freeCount} onChange={reload} />
+            <EpisodeRow key={e.id} ep={e} free={e.number <= freeCount} defaultPreview={defaultPreview} onChange={reload} />
           ))}
         </div>
       )}
@@ -363,18 +416,21 @@ function EpisodesManager({ novelId, episodes, freeCount }: { novelId: number; ep
   );
 }
 
-function EpisodeRow({ ep, free, onChange }: { ep: AdminEpisode; free: boolean; onChange: () => void }) {
+function EpisodeRow({ ep, free, defaultPreview, onChange }: { ep: AdminEpisode; free: boolean; defaultPreview: number; onChange: () => void }) {
   const [title, setTitle] = useState(ep.title ?? '');
   const [number, setNumber] = useState(String(ep.number));
+  const [preview, setPreview] = useState(ep.preview_seconds == null ? '' : String(ep.preview_seconds));
   const [pct, setPct] = useState<number | null>(null);
   const videoRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
-  const dirty = title !== (ep.title ?? '') || number !== String(ep.number);
+  const dirty =
+    title !== (ep.title ?? '') || number !== String(ep.number) || preview !== (ep.preview_seconds == null ? '' : String(ep.preview_seconds));
 
   const send = async (extra?: (fd: FormData) => Promise<void> | void) => {
     const fd = new FormData();
     fd.append('title', title);
     fd.append('number', number);
+    fd.append('preview_seconds', preview);
     if (extra) await extra(fd);
     setPct(0);
     try {
@@ -402,6 +458,18 @@ function EpisodeRow({ ep, free, onChange }: { ep: AdminEpisode; free: boolean; o
       <input ref={thumbRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && send((fd) => fd.append('thumbnail', e.target.files![0]))} />
       <input className="input w-16 px-2 py-2 text-center" value={number} onChange={(e) => setNumber(e.target.value.replace(/\D/g, ''))} />
       <input className="input min-w-[160px] flex-1 py-2" value={title} onChange={(e) => setTitle(e.target.value)} />
+      {!free && (
+        <label className="flex items-center gap-1.5 text-xs text-white/50" title="Segundos grátis deste episódio antes da tela de Pix. Vazio = padrão da novela.">
+          <input
+            className="input w-16 px-2 py-2 text-center"
+            inputMode="numeric"
+            placeholder={String(defaultPreview)}
+            value={preview}
+            onChange={(e) => setPreview(e.target.value.replace(/\D/g, ''))}
+          />
+          s grátis
+        </label>
+      )}
       <div className="flex items-center gap-2 text-xs">
         {free && <span className="chip bg-white/10 text-white/60">liberado</span>}
         {ep.has_video ? (

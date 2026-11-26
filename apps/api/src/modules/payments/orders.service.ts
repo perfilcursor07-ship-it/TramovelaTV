@@ -13,6 +13,8 @@ export function serializeOrder(o: any) {
     novel_title: o.novel_title,
     novel_slug: o.novel_slug,
     novel_cover: o.novel_cover,
+    kind: o.kind || 'full',
+    episodes_unlocked: o.episodes_unlocked ?? null,
     user_name: o.user_name,
     user_email: o.user_email,
     amount_cents: o.amount_cents,
@@ -50,6 +52,16 @@ export async function markOrderPaid(orderId: number, payload?: unknown) {
         updated_at: new Date(),
         ...(payload ? { provider_payload: JSON.stringify(payload) } : {}),
       });
+    if (order.kind === 'pack') {
+      // pacote: libera os próximos N episódios a partir do que o usuário já tem
+      const novel = await trx('novels').where({ id: order.novel_id }).first('free_episodes');
+      const cur = await trx('novel_unlocks').where({ user_id: order.user_id, novel_id: order.novel_id }).forUpdate().first();
+      const base = Math.max(Number(novel?.free_episodes || 0), Number(cur?.unlocked_until || 0));
+      const until = base + Number(order.episodes_unlocked || 0);
+      if (cur) await trx('novel_unlocks').where({ id: cur.id }).update({ unlocked_until: until, updated_at: new Date() });
+      else await trx('novel_unlocks').insert({ user_id: order.user_id, novel_id: order.novel_id, unlocked_until: until });
+      return;
+    }
     await trx('purchases')
       .insert({ user_id: order.user_id, novel_id: order.novel_id, order_id: order.id, source: 'order' })
       .onConflict(['user_id', 'novel_id'])
@@ -66,7 +78,9 @@ function mockPixText(ref: string, amountCents: number) {
   return `00020126580014BR.GOV.BCB.PIX0136MOCK-${ref}5204000053039865406${(amountCents / 100).toFixed(2)}5802BR5913TRAMANOVELA6006PALMAS62070503***6304MOCK`;
 }
 
-export async function createNovelOrder(userId: number, novelId: number) {
+export type OrderKind = 'full' | 'pack';
+
+export async function createNovelOrder(userId: number, novelId: number, kind: OrderKind = 'full') {
   const user = await db('users').where({ id: userId }).first();
   const novel = await db('novels').where({ id: novelId, status: 'published' }).first();
   if (!user) throw new HttpError(401, 'Usuário inválido.');
@@ -76,11 +90,22 @@ export async function createNovelOrder(userId: number, novelId: number) {
   const owned = await db('purchases').where({ user_id: userId, novel_id: novelId }).first();
   if (owned) throw new HttpError(409, 'Você já tem acesso a esta novela.', 'ALREADY_OWNED');
 
-  const amount = effectivePrice(novel);
+  let amount = effectivePrice(novel);
+  let episodesUnlocked: number | null = null;
+  if (kind === 'pack') {
+    const total = Number((await db('episodes').where({ novel_id: novelId }).count<{ c: number }[]>({ c: '*' }))[0].c);
+    const cur = await db('novel_unlocks').where({ user_id: userId, novel_id: novelId }).first('unlocked_until');
+    const until = Math.max(Number(novel.free_episodes || 0), Number(cur?.unlocked_until || 0));
+    const left = total - until;
+    if (!novel.pack_episodes || !novel.pack_price_cents) throw new HttpError(422, 'Esta novela não tem pacote de episódios.');
+    if (left <= 0) throw new HttpError(409, 'Você já liberou todos os episódios.', 'ALREADY_OWNED');
+    episodesUnlocked = Math.min(Number(novel.pack_episodes), left);
+    amount = Number(novel.pack_price_cents);
+  }
 
   // Reaproveita um Pix pendente ainda válido (evita gerar vários QR)
   const pending = await db('orders')
-    .where({ user_id: userId, novel_id: novelId, status: 'pending', amount_cents: amount })
+    .where({ user_id: userId, novel_id: novelId, status: 'pending', amount_cents: amount, kind })
     .where('expires_at', '>', new Date(Date.now() + 2 * 60 * 1000))
     .orderBy('id', 'desc')
     .first();
@@ -88,7 +113,7 @@ export async function createNovelOrder(userId: number, novelId: number) {
 
   const referenceId = `nov${novelId}-u${userId}-${crypto.randomBytes(4).toString('hex')}`;
   const expiresAt = new Date(Date.now() + env.pagbank.pixExpirationMinutes * 60 * 1000);
-  const description = `Novela: ${novel.title}`.slice(0, 64);
+  const description = (kind === 'pack' ? `+${episodesUnlocked} episódios: ${novel.title}` : `Novela: ${novel.title}`).slice(0, 64);
 
   let providerOrderId: string;
   let qrText: string | null;
@@ -129,6 +154,8 @@ export async function createNovelOrder(userId: number, novelId: number) {
     reference_id: referenceId,
     user_id: userId,
     novel_id: novelId,
+    kind,
+    episodes_unlocked: episodesUnlocked,
     amount_cents: amount,
     status: 'pending',
     provider: 'pagbank',

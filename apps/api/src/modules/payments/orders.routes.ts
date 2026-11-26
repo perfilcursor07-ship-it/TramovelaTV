@@ -10,6 +10,7 @@ export const ordersRoutes = Router();
 
 const createSchema = z.object({
   novel_id: z.coerce.number().int().positive(),
+  kind: z.enum(['full', 'pack']).optional().default('full'),
   cpf: z.string().optional(),
   phone: z.string().optional(),
 });
@@ -31,7 +32,7 @@ ordersRoutes.post(
     }
     if (Object.keys(updates).length) await db('users').where({ id: req.user!.id }).update(updates);
 
-    const order = await createNovelOrder(req.user!.id, data.novel_id);
+    const order = await createNovelOrder(req.user!.id, data.novel_id, data.kind);
     res.status(201).json(serializeOrder(order));
   }),
 );

@@ -12,9 +12,27 @@ export async function hasNovelAccess(user: AuthUser | undefined, novelId: number
 export const isFreeEpisode = (novel: { free_episodes: number }, ep: { number: number }) =>
   ep.number <= novel.free_episodes;
 
-/** O episódio 1 bloqueado pode tocar uma prévia de alguns segundos. */
-export const previewSecondsFor = (novel: { preview_seconds?: number | null }, ep: { number: number }) =>
-  ep.number === 1 ? Number(novel.preview_seconds || 0) : 0;
+/**
+ * Até qual episódio o usuário pode assistir inteiro.
+ * full = comprou a novela completa (ou é admin). until = grátis + pacotes pagos.
+ */
+export async function getNovelAccess(user: AuthUser | undefined, novel: { id: number; free_episodes: number }) {
+  const free = Number(novel.free_episodes || 0);
+  if (!user) return { full: false, until: free };
+  if (await hasNovelAccess(user, novel.id)) return { full: true, until: Number.MAX_SAFE_INTEGER };
+  const u = await db('novel_unlocks').where({ user_id: user.id, novel_id: novel.id }).first('unlocked_until');
+  return { full: false, until: Math.max(free, Number(u?.unlocked_until || 0)) };
+}
+
+/**
+ * Só o primeiro episódio bloqueado (logo depois do que já está liberado) toca alguns segundos grátis.
+ * O episódio pode ter um valor próprio; senão usa o padrão da novela.
+ */
+export const previewSecondsFor = (
+  novel: { preview_seconds?: number | null },
+  ep: { number: number; preview_seconds?: number | null },
+  until: number,
+) => (ep.number === until + 1 ? Number(ep.preview_seconds ?? novel.preview_seconds ?? 0) : 0);
 
 /** Formato público de uma novela (sem dados internos) */
 export function serializeNovel(n: any, extra: Record<string, unknown> = {}) {
@@ -35,6 +53,8 @@ export function serializeNovel(n: any, extra: Record<string, unknown> = {}) {
     effective_price_cents: effectivePrice(n),
     free_episodes: n.free_episodes,
     preview_seconds: Number(n.preview_seconds ?? 0),
+    pack_episodes: Number(n.pack_episodes ?? 0),
+    pack_price_cents: Number(n.pack_price_cents ?? 0),
     featured: !!n.featured,
     views: n.views,
     episodes_count: n.episodes_count != null ? Number(n.episodes_count) : undefined,

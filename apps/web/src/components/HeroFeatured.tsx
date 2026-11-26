@@ -67,9 +67,7 @@ export default function HeroFeatured({ novels }: { novels: Novel[] }) {
               <Link to={`/assistir/${n.slug}/1`} className="btn-primary px-7 py-3 text-base">
                 <Play className="h-5 w-5 fill-white" /> Assistir agora
               </Link>
-              {n.preview_seconds > 0 && (
-                <span className="text-xs text-white/55">{n.preview_seconds} segundos grátis</span>
-              )}
+              {n.free_episodes > 0 && <span className="text-xs text-white/55">Primeiro episódio grátis</span>}
             </div>
           </div>
 

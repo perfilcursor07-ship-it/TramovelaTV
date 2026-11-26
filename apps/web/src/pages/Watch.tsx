@@ -9,7 +9,6 @@ import {
   ChevronUp,
   Heart,
   LayoutGrid,
-  Lock,
   MessageCircle,
   Pause,
   Play,
@@ -24,7 +23,7 @@ import {
 import { ApiError, compactNumber, formatDuration, type NovelDetail } from '@novelas/shared';
 import { api, media } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import Paywall from '../components/Paywall';
+import Paywall, { type UnlockKind } from '../components/Paywall';
 import CheckoutModal from '../components/CheckoutModal';
 import { FullScreenLoader, Spinner } from '../components/ui';
 
@@ -47,7 +46,7 @@ export default function Watch() {
   const prev = idx > 0 ? episodes[idx - 1] : undefined;
   const next = idx >= 0 && idx < episodes.length - 1 ? episodes[idx + 1] : undefined;
 
-  const [checkout, setCheckout] = useState(false);
+  const [checkout, setCheckout] = useState<UnlockKind | null>(null);
   const [sheet, setSheet] = useState<'episodes' | 'comments' | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -58,8 +57,9 @@ export default function Watch() {
 
   // abre o checkout automaticamente ao voltar do login (?comprar=1)
   useEffect(() => {
-    if (sp.get('comprar') === '1' && user && data && !data.has_access) {
-      setCheckout(true);
+    const c = sp.get('comprar');
+    if (c && user && data && !data.has_access) {
+      setCheckout(c === 'pack' ? 'pack' : 'full');
       sp.delete('comprar');
       setSp(sp, { replace: true });
     }
@@ -68,10 +68,13 @@ export default function Watch() {
   // prévia: episódio bloqueado que toca alguns segundos antes do paywall
   const previewSec = episode?.locked ? episode.preview_seconds : 0;
   const [previewEnded, setPreviewEnded] = useState(false);
-  const showPaywall = !!episode?.locked && (!previewSec || previewEnded);  const playable = !!episode && episode.has_video && (!episode.locked || previewSec > 0);
+  const showPaywall = !!episode?.locked && (!previewSec || previewEnded);
+  const unlockedUntil = data?.unlocked_until ?? episodes.length;
+  const openCheckout = (kind: UnlockKind) => setCheckout(kind);
+  const playable = !!episode && episode.has_video && (!episode.locked || previewSec > 0);
 
   const stream = useQuery({
-    queryKey: ['stream', episode?.id, data?.has_access],
+    queryKey: ['stream', episode?.id, episode?.locked],
     queryFn: () => api.catalog.stream(episode!.id),
     enabled: playable,
     staleTime: previewSec ? 0 : 60 * 60 * 1000,
@@ -152,7 +155,7 @@ export default function Watch() {
         v.pause();
         setPreviewEnded(true);
       }
-      setTime({ cur: Math.min(v.currentTime, previewSec), dur: previewSec });
+      setTime({ cur: v.currentTime, dur: v.duration || 0 });
       return;
     }
     setTime({ cur: v.currentTime, dur: v.duration || 0 });
@@ -166,8 +169,8 @@ export default function Watch() {
     const v = videoRef.current;
     if (!v || !v.duration) return;
     const r = e.currentTarget.getBoundingClientRect();
-    const total = previewSec || v.duration;
-    v.currentTime = Math.min(((e.clientX - r.left) / r.width) * total, total - 0.2);
+    const target = ((e.clientX - r.left) / r.width) * v.duration;
+    v.currentTime = previewSec ? Math.min(target, Math.max(0, previewSec - 0.3)) : Math.min(target, v.duration - 0.2);
   };
 
   const requireLogin = () => {
@@ -293,9 +296,6 @@ export default function Watch() {
               <p className="truncate text-sm font-bold">{novel.title}</p>
               <p className="text-xs text-white/60">
                 EP {episode?.number ?? 1} / {episodes.length}
-                {previewSec > 0 && !previewEnded && (
-                  <span className="ml-2 text-white/80">· prévia {Math.max(0, Math.ceil(previewSec - time.cur))}s</span>
-                )}
               </p>
             </div>
             {stream.data?.url && (
@@ -352,12 +352,12 @@ export default function Watch() {
 
           {/* PAYWALL */}
           {showPaywall && episode && (
-            <Paywall novel={novel} onUnlock={() => (user ? setCheckout(true) : nav(`/entrar?next=${encodeURIComponent(`/assistir/${slug}/${episode.number}?comprar=1`)}`))} />
+            <Paywall novel={novel} unlockedUntil={unlockedUntil} totalEpisodes={episodes.length} onUnlock={openCheckout} />
           )}
 
           {/* sheets */}
           {sheet === 'episodes' && (
-            <EpisodesSheet data={data} current={episode?.number ?? 1} onPick={goTo} onClose={() => setSheet(null)} onUnlock={() => setCheckout(true)} />
+            <EpisodesSheet data={data} current={episode?.number ?? 1} onPick={goTo} onClose={() => setSheet(null)} />
           )}
           {sheet === 'comments' && episode && (
             <CommentsSheet episodeId={episode.id} slug={slug} onClose={() => setSheet(null)} requireLogin={requireLogin} />
@@ -377,8 +377,11 @@ export default function Watch() {
 
       <CheckoutModal
         novel={novel}
-        open={checkout}
-        onClose={() => setCheckout(false)}
+        kind={checkout ?? 'pack'}
+        unlockedUntil={unlockedUntil}
+        totalEpisodes={episodes.length}
+        open={!!checkout}
+        onClose={() => setCheckout(null)}
         onPaid={() => {
           refetch();
         }}
@@ -417,13 +420,11 @@ function EpisodesSheet({
   current,
   onPick,
   onClose,
-  onUnlock,
 }: {
   data: NovelDetail;
   current: number;
   onPick: (n: number) => void;
   onClose: () => void;
-  onUnlock: () => void;
 }) {
   return (
     <Sheet title={`${data.novel.title} · ${data.episodes.length} episódios`} onClose={onClose}>
@@ -438,15 +439,9 @@ function EpisodesSheet({
             )}
           >
             {e.number}
-            {e.locked && <Lock className="absolute right-1 top-1 h-2.5 w-2.5 text-white/35" />}
           </button>
         ))}
       </div>
-      {!data.has_access && (
-        <button onClick={onUnlock} className="btn-primary mx-5 mb-5">
-          Desbloquear todos os episódios
-        </button>
-      )}
     </Sheet>
   );
 }

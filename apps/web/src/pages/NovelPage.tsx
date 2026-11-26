@@ -62,7 +62,10 @@ export default function NovelPage() {
   const { novel, episodes, has_access } = data;
   const startEp = data.last_episode || 1;
   const hasPromo = novel.promo_price_cents != null;
-  const previewSec = episodes[0]?.preview_seconds || 0;
+  const until = data.unlocked_until ?? episodes.length;
+  const freeEps = Math.min(novel.free_episodes || 0, episodes.length);
+  // de onde o espectador continua: último assistido, senão o primeiro episódio
+  const watchFrom = data.last_episode || 1;
   const tags = [novel.genre, ...(novel.tags || [])].filter((t, i, a) => t && a.indexOf(t) === i) as string[];
   const ranges = Array.from({ length: Math.ceil(episodes.length / PAGE) }, (_, i) => i);
   const shown = episodes.slice(range * PAGE, range * PAGE + PAGE);
@@ -101,7 +104,7 @@ export default function NovelPage() {
         <div className="relative mx-auto grid max-w-6xl gap-8 px-4 pb-10 pt-20 sm:px-6 sm:pt-28 md:grid-cols-[280px_1fr] lg:grid-cols-[320px_1fr]">
           {/* capa como "player" vertical */}
           <Link
-            to={`/assistir/${slug}/${has_access ? startEp : 1}`}
+            to={`/assistir/${slug}/${watchFrom}`}
             className="group relative mx-auto block w-56 overflow-hidden rounded-2xl shadow-2xl shadow-black/60 ring-1 ring-white/10 sm:w-64 md:mx-0 md:w-full"
           >
             <img src={media(novel.cover_url)} alt={novel.title} className="aspect-[3/4] w-full object-cover transition duration-500 group-hover:scale-105" />
@@ -110,9 +113,9 @@ export default function NovelPage() {
                 <Play className="ml-1 h-7 w-7 fill-ink-950" />
               </span>
             </div>
-            {!has_access && previewSec > 0 && (
+            {!has_access && freeEps > 0 && (
               <span className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-1.5 rounded-full bg-black/70 py-1.5 text-xs font-semibold backdrop-blur">
-                <Timer className="h-3.5 w-3.5 text-brand-400" /> {previewSec}s grátis no EP 1
+                <Timer className="h-3.5 w-3.5 text-brand-400" /> {freeEps === 1 ? 'EP 1 grátis' : `${freeEps} episódios grátis`}
               </span>
             )}
           </Link>
@@ -169,36 +172,24 @@ export default function NovelPage() {
                 </span>
               </div>
             ) : (
-              <div className="mt-7 max-w-xl rounded-2xl border border-white/10 bg-ink-900/80 p-4 backdrop-blur sm:p-5">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-white/45">Novela completa</p>
-                    <p className="mt-1 flex items-baseline gap-2">
-                      <span className="text-3xl font-extrabold">{formatBRL(novel.effective_price_cents)}</span>
-                      {hasPromo && <span className="text-sm text-white/40 line-through">{formatBRL(novel.price_cents)}</span>}
-                    </p>
-                    <p className="text-xs text-white/45">Pagamento único via Pix · {episodes.length} episódios</p>
-                  </div>
-                  {promo && !promo.done && (
-                    <div className="rounded-lg bg-brand-500/15 px-3 py-1.5 text-right">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-300">Promoção acaba em</p>
-                      <p className="font-mono text-sm font-bold">
-                        {promo.d > 0 ? `${promo.d}d ` : ''}
-                        {String(promo.h).padStart(2, '0')}:{String(promo.m).padStart(2, '0')}:{String(promo.s).padStart(2, '0')}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <button onClick={buy} className="btn-primary py-3.5 text-base">
-                    <Unlock className="h-5 w-5" /> Desbloquear tudo
-                  </button>
-                  {previewSec > 0 && (
-                    <Link to={`/assistir/${slug}/1`} className="btn-ghost py-3.5 text-base">
-                      <Play className="h-5 w-5 fill-white" /> Assistir {previewSec}s grátis
-                    </Link>
-                  )}
-                </div>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Link to={`/assistir/${slug}/${watchFrom}`} className="btn-primary animate-pulse-glow px-8 py-3.5 text-base">
+                  <Play className="h-5 w-5 fill-white" />
+                  {data.last_episode ? `Continuar EP ${watchFrom}` : freeEps > 0 ? 'Assistir grátis' : 'Assistir'}
+                </Link>
+                <button onClick={buy} className="btn-ghost px-5 py-3.5 text-sm">
+                  <Unlock className="h-4 w-4" /> Novela completa · {formatBRL(novel.effective_price_cents)}
+                  {hasPromo && <span className="text-xs text-white/40 line-through">{formatBRL(novel.price_cents)}</span>}
+                </button>
+                {promo && !promo.done && (
+                  <span className="text-xs text-white/50">
+                    Promoção acaba em{' '}
+                    <span className="font-mono text-white/80">
+                      {promo.d > 0 ? `${promo.d}d ` : ''}
+                      {String(promo.h).padStart(2, '0')}:{String(promo.m).padStart(2, '0')}:{String(promo.s).padStart(2, '0')}
+                    </span>
+                  </span>
+                )}
               </div>
             )}
 
@@ -241,7 +232,7 @@ export default function NovelPage() {
         <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
           {shown.map((e) => {
             const current = e.number === data.last_episode;
-            const preview = e.locked && e.preview_seconds > 0;
+            const freeBadge = !has_access && e.number <= freeEps;
             return (
               <Link
                 key={e.id}
@@ -251,25 +242,25 @@ export default function NovelPage() {
                   'relative grid h-12 place-items-center rounded-lg text-sm font-semibold transition sm:h-14',
                   current
                     ? 'bg-brand-500 text-white'
-                    : e.locked && !preview
+                    : e.locked
                       ? 'bg-ink-900 text-white/45 hover:bg-ink-800 hover:text-white/70'
                       : 'bg-ink-800 text-white hover:bg-ink-700',
                 )}
               >
                 {e.number}
-                {preview && (
+                {freeBadge && (
                   <span className="absolute -top-1.5 right-1 rounded bg-emerald-500 px-1 text-[9px] font-black uppercase leading-[14px] text-black">
                     Grátis
                   </span>
                 )}
-                {e.locked && !preview && <Lock className="absolute right-1.5 top-1.5 h-3 w-3 text-white/30" />}
+                {e.locked && <Lock className="absolute right-1.5 top-1.5 h-3 w-3 text-white/30" />}
               </Link>
             );
           })}
         </div>
         {!has_access && (
           <p className="mt-3 text-xs text-white/40">
-            {previewSec > 0 ? `O EP 1 tem ${previewSec} segundos grátis. ` : ''}Os demais episódios são liberados após o pagamento.
+            {until > 0 ? `Você pode assistir ${until === 1 ? 'o EP 1' : `até o EP ${until}`} agora. ` : ''}Os próximos são liberados por Pix, em pacotes promocionais ou a novela completa.
           </p>
         )}
       </section>

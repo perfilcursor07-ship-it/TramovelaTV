@@ -111,8 +111,7 @@ export default function Home() {
             <Timer className="h-5 w-5" />
           </span>
           <p className="text-white/75">
-            <b className="text-white">Comece de graça:</b> assista os primeiros 30 segundos de qualquer novela. Gostou? Desbloqueie todos os
-            episódios com um único Pix.
+            <b className="text-white">Comece de graça:</b> o primeiro episódio de toda novela é liberado. Toque e assista agora.
           </p>
         </div>
 

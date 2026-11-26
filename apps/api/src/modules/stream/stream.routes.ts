@@ -65,7 +65,7 @@ streamRoutes.get(
     const tailStart = Math.max(0, size - 2 * 1024 * 1024);
     if (payload.pv) {
       const dur = Number(ep.duration_seconds || 0);
-      const ratio = dur > 0 ? Math.min(1, (payload.pv + 4) / dur) : 0.25;
+      const ratio = dur > 0 ? Math.min(1, (payload.pv + 6) / dur) : 0.25;
       previewLimit = Math.max(512 * 1024, Math.floor(size * ratio)) - 1;
     }
     const allowed = (start: number) => start <= previewLimit || start >= tailStart;
@@ -92,10 +92,28 @@ streamRoutes.get(
       end = size - 1;
     }
     end = Math.min(end, size - 1);
-    if (payload.pv) {
+    if (payload.pv && start < size) {
       if (!allowed(start)) {
-        res.writeHead(416, { 'Content-Range': `bytes */${size}` });
-        res.end();
+        // Depois do trecho da prévia: responde com bytes zerados em vez de erro.
+        // Um 416 aqui faz o navegador abandonar o vídeo inteiro (ele baixa adiantado),
+        // e o conteúdo real continua protegido.
+        end = Math.min(end, tailStart - 1);
+        res.writeHead(206, { ...common, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+        const zeros = Buffer.alloc(64 * 1024);
+        let left = end - start + 1;
+        const pump = () => {
+          while (left > 0) {
+            const n = Math.min(left, zeros.length);
+            left -= n;
+            if (!res.write(n === zeros.length ? zeros : zeros.subarray(0, n))) {
+              res.once('drain', pump);
+              return;
+            }
+          }
+          res.end();
+        };
+        res.on('close', () => (left = 0));
+        pump();
         return;
       }
       if (start <= previewLimit) end = Math.min(end, previewLimit);

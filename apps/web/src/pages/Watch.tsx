@@ -68,7 +68,6 @@ export default function Watch() {
   // prévia: episódio bloqueado que toca alguns segundos antes do paywall
   const previewSec = episode?.locked ? episode.preview_seconds : 0;
   const [previewEnded, setPreviewEnded] = useState(false);
-  const showPaywall = !!episode?.locked && (!previewSec || previewEnded);
   const unlockedUntil = data?.unlocked_until ?? episodes.length;
   const openCheckout = (kind: UnlockKind) => setCheckout(kind);
   const playable = !!episode && episode.has_video && (!episode.locked || previewSec > 0);
@@ -80,6 +79,18 @@ export default function Watch() {
     staleTime: previewSec ? 0 : 60 * 60 * 1000,
     retry: false,
   });
+  // se a prévia não conseguir carregar, a oferta aparece mesmo assim (o funil nunca trava)
+  const showPaywall = !!episode?.locked && (!previewSec || previewEnded || stream.isError);
+
+  // vigia da prévia: se o vídeo não começar a tocar em 10s, abre a oferta
+  useEffect(() => {
+    if (!previewSec || !stream.data?.url) return;
+    const t = setTimeout(() => {
+      const v = videoRef.current;
+      if (!v || v.readyState < 2) setPreviewEnded(true);
+    }, 10000);
+    return () => clearTimeout(t);
+  }, [previewSec, stream.data?.url]);
 
   const goTo = useCallback(
     (n: number) => {
@@ -257,6 +268,7 @@ export default function Watch() {
               onPause={() => setPlaying(false)}
               onTimeUpdate={onTimeUpdate}
               onEnded={() => (previewSec ? setPreviewEnded(true) : next && goTo(next.number))}
+              onError={() => previewSec && setPreviewEnded(true)}
             />
           ) : (
             <div className="relative h-full w-full">

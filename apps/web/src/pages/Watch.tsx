@@ -50,6 +50,9 @@ export default function Watch() {
   const [sheet, setSheet] = useState<'episodes' | 'comments' | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
+  // userMuted = a pessoa escolheu ficar sem som; autoMuted = o navegador bloqueou o som e tocamos mudo
+  const userMuted = useRef(false);
+  const [autoMuted, setAutoMuted] = useState(false);
   const [time, setTime] = useState({ cur: 0, dur: 0 });
   const [likeAnim, setLikeAnim] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -110,16 +113,40 @@ export default function Watch() {
     if (user && episode && !episode.locked) api.social.progress(episode.id, 0).catch(() => undefined);
   }, [episode?.id, episode?.locked, user]);
 
-  // tenta tocar com som; se o navegador bloquear, toca mudo
+  // a cada episódio tenta tocar COM som; só fica mudo se o navegador bloquear (aí o 1º toque liga o som)
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !stream.data?.url) return;
-    v.play().catch(() => {
-      v.muted = true;
-      setMuted(true);
-      v.play().catch(() => undefined);
-    });
+    v.muted = userMuted.current;
+    v.play()
+      .then(() => {
+        setMuted(v.muted);
+        if (!v.muted) setAutoMuted(false);
+      })
+      .catch(() => {
+        v.muted = true;
+        setMuted(true);
+        if (!userMuted.current) setAutoMuted(true);
+        v.play().catch(() => undefined);
+      });
   }, [stream.data?.url]);
+
+  const unmuteIfAuto = () => {
+    const v = videoRef.current;
+    if (!autoMuted || !v) return;
+    v.muted = false;
+    setMuted(false);
+    setAutoMuted(false);
+  };
+
+  const toggleMute = () => {
+    const v = videoRef.current;
+    const m = !muted;
+    userMuted.current = m;
+    setAutoMuted(false);
+    setMuted(m);
+    if (v) v.muted = m;
+  };
 
   // teclado: ↑ ↓ espaço
   useEffect(() => {
@@ -240,6 +267,7 @@ export default function Watch() {
       onWheel={onWheel}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
+      onPointerDown={unmuteIfAuto}
     >
       {/* fundo desfocado */}
       {novel.cover_url && (
@@ -249,15 +277,12 @@ export default function Watch() {
       <div className="relative mx-auto h-full w-full sm:aspect-[9/16] sm:w-auto sm:max-w-full sm:py-4">
         <div className="relative h-full w-full overflow-hidden bg-ink-950 sm:rounded-3xl sm:ring-1 sm:ring-white/10">
           {/* vídeo / placeholders */}
-          {playable && stream.data?.url ? (
-            <video
-              key={stream.data.url}
+          {/* um único <video> para todos os episódios: o celular mantém a permissão de som */}
+          <video
               ref={videoRef}
-              src={stream.data.url}
-              className="h-full w-full object-cover"
+              src={playable ? stream.data?.url : undefined}
+              className={clsx('h-full w-full object-cover', !(playable && stream.data?.url) && 'invisible')}
               playsInline
-              autoPlay
-              muted={muted}
               preload="auto"
               controls={false}
               disablePictureInPicture
@@ -270,10 +295,10 @@ export default function Watch() {
               onPause={() => setPlaying(false)}
               onTimeUpdate={onTimeUpdate}
               onEnded={() => (previewSec ? setPreviewEnded(true) : next ? goTo(next.number) : setEndReached(true))}
-              onError={() => previewSec && setPreviewEnded(true)}
+              onError={(e) => previewSec && e.currentTarget.getAttribute('src') && setPreviewEnded(true)}
             />
-          ) : (
-            <div className="relative h-full w-full">
+          {!(playable && stream.data?.url) && (
+            <div className="absolute inset-0">
               {novel.cover_url && <img src={media(novel.cover_url)} alt="" className="h-full w-full object-cover opacity-60" draggable={false} />}
               {episode && !showPaywall && (
                 <div className="absolute inset-0 grid place-items-center">
@@ -301,6 +326,16 @@ export default function Watch() {
             </button>
           )}
 
+          {/* aviso de som desligado pelo navegador */}
+          {autoMuted && muted && stream.data?.url && !showPaywall && (
+            <button
+              onClick={unmuteIfAuto}
+              className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-bold text-ink-950 shadow-xl animate-float-up"
+            >
+              <VolumeX className="h-4 w-4" /> Toque para ativar o som
+            </button>
+          )}
+
           {/* topo */}
           <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-3 bg-gradient-to-b from-black/80 to-transparent p-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <Link to={`/novela/${slug}`} className="rounded-full bg-black/40 p-2 backdrop-blur hover:bg-black/60" aria-label="Voltar">
@@ -314,10 +349,8 @@ export default function Watch() {
             </div>
             {stream.data?.url && (
               <button
-                onClick={() => {
-                  setMuted((m) => !m);
-                  if (videoRef.current) videoRef.current.muted = !muted;
-                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={toggleMute}
                 className="rounded-full bg-black/40 p-2 backdrop-blur"
                 aria-label="Som"
               >

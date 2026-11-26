@@ -69,12 +69,11 @@ export async function createPixOrder(input: CreatePixOrderInput) {
         : {}),
     },
     items: [{ reference_id: input.referenceId, name: input.description, quantity: 1, unit_amount: input.amountCents }],
-    charges: [
+    // Pix na Orders API: o QR vem em qr_codes; quando é pago, o pedido ganha uma charge com status PAID
+    qr_codes: [
       {
-        reference_id: input.referenceId,
-        description: input.description,
-        amount: { value: input.amountCents, currency: 'BRL' },
-        payment_method: { type: 'PIX', pix: { expiration_date: input.expiresAt.toISOString() } },
+        amount: { value: input.amountCents },
+        expiration_date: input.expiresAt.toISOString(),
       },
     ],
   };

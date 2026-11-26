@@ -10,7 +10,8 @@ function req(name: string, fallback?: string): string {
   return v;
 }
 
-const pagbankEnv = (process.env.PAGBANK_ENV || 'mock') as 'mock' | 'sandbox' | 'production';
+// aceita também PIX_ENVIRONMENT / PAGBANK_TOKEN (nomes alternativos)
+const pagbankEnv = (process.env.PAGBANK_ENV || process.env.PIX_ENVIRONMENT || 'mock') as 'mock' | 'sandbox' | 'production';
 
 export const env = {
   nodeEnv: req('NODE_ENV', 'development'),
@@ -31,10 +32,10 @@ export const env = {
     env: pagbankEnv,
     token:
       pagbankEnv === 'production'
-        ? process.env.PAGBANK_TOKEN_PRODUCTION || ''
-        : process.env.PAGBANK_TOKEN_SANDBOX || '',
+        ? process.env.PAGBANK_TOKEN_PRODUCTION || process.env.PAGBANK_TOKEN || ''
+        : process.env.PAGBANK_TOKEN_SANDBOX || process.env.PAGBANK_TOKEN || '',
     baseUrl:
-      pagbankEnv === 'production' ? 'https://api.pagbank.com' : 'https://sandbox.api.pagseguro.com',
+      pagbankEnv === 'production' ? 'https://api.pagseguro.com' : 'https://sandbox.api.pagseguro.com',
     pixExpirationMinutes: Number(req('PIX_EXPIRATION_MINUTES', '30')),
   },
   maxVideoSizeMb: Number(req('MAX_VIDEO_SIZE_MB', '2048')),

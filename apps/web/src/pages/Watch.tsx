@@ -352,7 +352,7 @@ export default function Watch() {
 
           {/* ações à direita */}
           {episode && !showPaywall && (
-            <div className="absolute bottom-20 right-3 z-20 flex flex-col items-center gap-5">
+            <div className="absolute bottom-20 right-3 z-30 flex flex-col items-center gap-5">
               <RailButton onClick={like} label={compactNumber(episode.likes_count)}>
                 <Heart className={clsx('h-7 w-7', episode.liked && 'fill-brand-500 text-brand-500', likeAnim && 'animate-heart-pop')} />
               </RailButton>

@@ -51,7 +51,8 @@ streamRoutes.get(
     const common = {
       'Content-Type': mime,
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'private, no-store',
+      // cache só no navegador da pessoa (link é pessoal e expira): permite pré-carregar o próximo episódio
+      'Cache-Control': 'private, max-age=600',
       'Content-Disposition': 'inline',
       'X-Content-Type-Options': 'nosniff',
     };

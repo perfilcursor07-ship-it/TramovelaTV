@@ -81,9 +81,42 @@ export default function Watch() {
     queryKey: ['stream', episode?.id, episode?.locked],
     queryFn: () => api.catalog.stream(episode!.id),
     enabled: playable,
-    staleTime: previewSec ? 0 : 60 * 60 * 1000,
+    staleTime: previewSec ? 5 * 60 * 1000 : 60 * 60 * 1000,
     retry: false,
   });
+
+  // próximo episódio: já pega o link enquanto o atual toca, e na metade começa a baixar o vídeo
+  const nextPlayable = !!next && next.has_video && (!next.locked || next.preview_seconds > 0);
+  const nextStream = useQuery({
+    queryKey: ['stream', next?.id, next?.locked],
+    queryFn: () => api.catalog.stream(next!.id),
+    enabled: nextPlayable && !!stream.data?.url,
+    staleTime: next?.locked ? 5 * 60 * 1000 : 60 * 60 * 1000,
+    retry: false,
+  });
+  const [warmNext, setWarmNext] = useState(false);
+
+  // troca sem "piscar": segura o último quadro na tela até o próximo episódio começar
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [freeze, setFreeze] = useState(false);
+  const snapshot = () => {
+    const v = videoRef.current;
+    const c = canvasRef.current;
+    if (!v || !c || !v.videoWidth) return;
+    try {
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      c.getContext('2d')?.drawImage(v, 0, 0, c.width, c.height);
+      setFreeze(true);
+    } catch {
+      /* sem quadro disponível */
+    }
+  };
+  useEffect(() => {
+    if (!freeze) return;
+    const t = setTimeout(() => setFreeze(false), 4000);
+    return () => clearTimeout(t);
+  }, [freeze]);
   // se a prévia não conseguir carregar, a oferta aparece mesmo assim (o funil nunca trava)
   const showPaywall = !!episode?.locked && (!previewSec || previewEnded || stream.isError);
 
@@ -100,8 +133,10 @@ export default function Watch() {
   const goTo = useCallback(
     (n: number) => {
       setSheet(null);
+      snapshot();
       nav(`/assistir/${slug}/${n}`, { replace: true });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [nav, slug],
   );
 
@@ -111,6 +146,7 @@ export default function Watch() {
     setTime({ cur: 0, dur: 0 });
     setPreviewEnded(false);
     setEndReached(false);
+    setWarmNext(false);
     if (user && episode && !episode.locked) api.social.progress(episode.id, 0).catch(() => undefined);
   }, [episode?.id, episode?.locked, user]);
 
@@ -200,6 +236,7 @@ export default function Watch() {
       return;
     }
     setTime({ cur: v.currentTime, dur: v.duration || 0 });
+    if (!warmNext && v.duration && v.currentTime > v.duration * 0.5) setWarmNext(true);
     if (user && episode && v.currentTime - lastSaved.current > 10) {
       lastSaved.current = v.currentTime;
       api.social.progress(episode.id, Math.floor(v.currentTime)).catch(() => undefined);
@@ -283,12 +320,19 @@ export default function Watch() {
               onDragStart={(e) => e.preventDefault()}
               onClick={toggle}
               onPlay={() => setPlaying(true)}
+              onPlaying={() => setFreeze(false)}
               onPause={() => setPlaying(false)}
               onTimeUpdate={onTimeUpdate}
               onEnded={() => (previewSec ? setPreviewEnded(true) : next ? goTo(next.number) : setEndReached(true))}
               onError={(e) => previewSec && e.currentTarget.getAttribute('src') && setPreviewEnded(true)}
             />
-          {!(playable && stream.data?.url) && (
+          {/* último quadro do episódio anterior (cobre o carregamento do próximo) */}
+          <canvas ref={canvasRef} className={clsx('pointer-events-none absolute inset-0 h-full w-full object-cover', !(freeze && playable) && 'hidden')} />
+          {/* pré-carrega o próximo episódio em segundo plano */}
+          {warmNext && nextStream.data?.url && (
+            <video src={nextStream.data.url} preload="auto" muted playsInline aria-hidden className="pointer-events-none absolute h-px w-px opacity-0" />
+          )}
+          {!(playable && stream.data?.url) && !(freeze && playable) && (
             <div className="absolute inset-0">
               {novel.cover_url && <img src={media(novel.cover_url)} alt="" className="h-full w-full object-cover opacity-60" draggable={false} />}
               {episode && !showPaywall && (
@@ -309,7 +353,7 @@ export default function Watch() {
           )}
 
           {/* play central quando pausado */}
-          {stream.data?.url && !playing && !showPaywall && (
+          {stream.data?.url && !playing && !showPaywall && !freeze && (
             <button onClick={toggle} className="absolute inset-0 z-10 grid place-items-center" aria-label="Reproduzir">
               <span className="grid h-20 w-20 place-items-center rounded-full bg-black/40 backdrop-blur">
                 <Play className="h-9 w-9 translate-x-1 fill-white" />

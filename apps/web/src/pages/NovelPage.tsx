@@ -66,6 +66,7 @@ export default function NovelPage() {
   const hasPromo = novel.promo_price_cents != null;
   const until = data.unlocked_until ?? episodes.length;
   const freeEps = Math.min(novel.free_episodes || 0, episodes.length);
+  const previewEp = episodes.find((e) => e.locked && e.preview_seconds > 0);
   // de onde o espectador continua: último assistido, senão o primeiro episódio
   const watchFrom = data.last_episode || 1;
   const tags = [novel.genre, ...(novel.tags || [])].filter((t, i, a) => t && a.indexOf(t) === i) as string[];
@@ -168,17 +169,9 @@ export default function NovelPage() {
                   <Play className="h-5 w-5 fill-white" />
                   {data.last_episode ? `Continuar EP ${watchFrom}` : freeEps > 0 ? 'Assistir grátis' : 'Assistir'}
                 </Link>
-                <button onClick={buy} className="btn-ghost px-5 py-3.5 text-sm">
-                  <Unlock className="h-4 w-4" /> Novela completa · {formatBRL(novel.effective_price_cents)}
-                  {hasPromo && <span className="text-xs text-white/40 line-through">{formatBRL(novel.price_cents)}</span>}
-                </button>
-                {promo && !promo.done && (
-                  <span className="text-xs text-white/50">
-                    Promoção acaba em{' '}
-                    <span className="font-mono text-white/80">
-                      {promo.d > 0 ? `${promo.d}d ` : ''}
-                      {String(promo.h).padStart(2, '0')}:{String(promo.m).padStart(2, '0')}:{String(promo.s).padStart(2, '0')}
-                    </span>
+                {until > freeEps && (
+                  <span className="flex items-center gap-1.5 text-sm text-emerald-300">
+                    <CheckCircle2 className="h-4 w-4" /> Liberado até o EP {Math.min(until, episodes.length)}
                   </span>
                 )}
               </div>
@@ -223,7 +216,9 @@ export default function NovelPage() {
         <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
           {shown.map((e) => {
             const current = e.number === data.last_episode;
-            const freeBadge = !has_access && e.number <= freeEps;
+            const isFree = !has_access && e.number <= freeEps;
+            const isPaid = !has_access && !e.locked && e.number > freeEps; // liberado por pacote pago
+            const isPreview = e.locked && e.preview_seconds > 0;
             return (
               <Link
                 key={e.id}
@@ -233,25 +228,37 @@ export default function NovelPage() {
                   'relative grid h-12 place-items-center rounded-lg text-sm font-semibold transition sm:h-14',
                   current
                     ? 'bg-brand-500 text-white'
-                    : e.locked
+                    : e.locked && !isPreview
                       ? 'bg-ink-900 text-white/45 hover:bg-ink-800 hover:text-white/70'
                       : 'bg-ink-800 text-white hover:bg-ink-700',
                 )}
               >
                 {e.number}
-                {freeBadge && (
+                {isFree && (
                   <span className="absolute -top-1.5 right-1 rounded bg-emerald-500 px-1 text-[9px] font-black uppercase leading-[14px] text-black">
                     Grátis
                   </span>
                 )}
-                {e.locked && <Lock className="absolute right-1.5 top-1.5 h-3 w-3 text-white/30" />}
+                {isPreview && (
+                  <span className="absolute -top-1.5 right-1 whitespace-nowrap rounded bg-yellow-400 px-1 text-[9px] font-black uppercase leading-[14px] text-black">
+                    {e.preview_seconds}s grátis
+                  </span>
+                )}
+                {isPaid && <CheckCircle2 className="absolute right-1.5 top-1.5 h-3.5 w-3.5 text-emerald-400" />}
+                {e.locked && !isPreview && <Lock className="absolute right-1.5 top-1.5 h-3 w-3 text-white/30" />}
               </Link>
             );
           })}
         </div>
         {!has_access && (
           <p className="mt-3 text-xs text-white/40">
-            {until > 0 ? `Você pode assistir ${until === 1 ? 'o EP 1' : `até o EP ${until}`} agora. ` : ''}Os próximos são liberados por Pix, em pacotes promocionais ou a novela completa.
+            {[
+              freeEps > 0 ? (freeEps === 1 ? 'EP 1 grátis' : `EP 1 ao ${freeEps} grátis`) : null,
+              until > freeEps ? `EP ${freeEps + 1} ao ${Math.min(until, episodes.length)} liberados na sua conta` : null,
+              previewEp ? `EP ${previewEp.number} com ${previewEp.preview_seconds} segundos grátis` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         )}
       </section>

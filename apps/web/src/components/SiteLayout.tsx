@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Home, LayoutDashboard, LogIn, Search, User } from 'lucide-react';
+import { BadgeCheck, Compass, Headphones, Home, LayoutDashboard, Lock, LogIn, Search, ShieldCheck, User, Zap } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../lib/auth';
 import { useSettings } from '../lib/settings';
@@ -85,13 +85,48 @@ export default function SiteLayout() {
         <Outlet />
       </main>
 
-      <footer className="mt-16 hidden border-t border-white/5 py-10 md:block">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 text-sm text-white/40">
-          <Logo className="opacity-70" />
-          <p>{settings.site_tagline}</p>
-          <div className="flex items-center gap-5">
-            <Link to="/contato" className="hover:text-white">Contato e ajuda</Link>
-            <span>© {new Date().getFullYear()} {settings.site_name}</span>
+      <footer className="mt-16 border-t border-white/5 pb-28 pt-10 md:pb-10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          {/* selos de confiança */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { icon: ShieldCheck, title: 'Pagamento seguro', text: 'Pix processado pelo PagBank' },
+              { icon: Zap, title: 'Liberação na hora', text: 'Pagou, assistiu em segundos' },
+              { icon: BadgeCheck, title: 'Sem assinatura', text: 'Sem mensalidade nem cobrança automática' },
+              { icon: Headphones, title: 'Suporte de verdade', text: 'Fale com a gente quando precisar' },
+            ].map((b) => (
+              <div key={b.title} className="flex items-start gap-3 rounded-2xl border border-white/[.06] bg-white/[.02] p-3 sm:p-4">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-500/10 text-emerald-400">
+                  <b.icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <b className="block text-sm text-white/90">{b.title}</b>
+                  <span className="text-xs leading-snug text-white/45">{b.text}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-col items-center gap-4 border-t border-white/5 pt-6 text-sm text-white/40 md:flex-row md:justify-between">
+            <Logo className="opacity-80" />
+            <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+              <Link to="/explorar" className="hover:text-white">Novelas</Link>
+              <Link to={user ? '/painel/biblioteca' : '/entrar'} className="hover:text-white">Minhas novelas</Link>
+              <Link to="/contato" className="hover:text-white">Contato e ajuda</Link>
+              {settings.support_whatsapp && (
+                <a
+                  href={`https://wa.me/${settings.support_whatsapp.replace(/\D/g, '').replace(/^(?!55)/, '55')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white"
+                >
+                  WhatsApp
+                </a>
+              )}
+            </nav>
+            <p className="flex items-center gap-1.5 text-xs">
+              <Lock className="h-3.5 w-3.5" /> Site seguro · © {new Date().getFullYear()} {settings.site_name}
+            </p>
           </div>
         </div>
       </footer>

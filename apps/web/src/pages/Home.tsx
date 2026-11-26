@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { ChevronRight, Flame, Play, Timer } from 'lucide-react';
+import { ChevronRight, Flame, Play } from 'lucide-react';
 import { compactNumber, type Novel } from '@novelas/shared';
 import { api, media } from '../lib/api';
 import HeroFeatured from '../components/HeroFeatured';
@@ -105,16 +105,6 @@ export default function Home() {
       <HeroFeatured novels={hero} />
 
       <div className="mx-auto max-w-7xl space-y-12 px-4 pb-24 pt-6 sm:px-6">
-        {/* aviso da prévia grátis */}
-        <div className="flex items-center gap-3 rounded-2xl border border-brand-500/20 bg-brand-500/[.07] px-4 py-3 text-sm">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500/20 text-brand-400">
-            <Timer className="h-5 w-5" />
-          </span>
-          <p className="text-white/75">
-            <b className="text-white">Comece de graça:</b> o primeiro episódio de toda novela é liberado. Toque e assista agora.
-          </p>
-        </div>
-
         {data.continue_watching.length > 0 && (
           <Section title="Continue assistindo" icon={<Play className="h-5 w-5 fill-brand-500 text-brand-500" />}>
             <div className={gridCls}>

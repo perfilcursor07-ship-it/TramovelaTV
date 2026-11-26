@@ -85,7 +85,11 @@ export async function createNovelOrder(userId: number, novelId: number, kind: Or
   const novel = await db('novels').where({ id: novelId, status: 'published' }).first();
   if (!user) throw new HttpError(401, 'Usuário inválido.');
   if (!novel) throw new HttpError(404, 'Novela não encontrada.');
-  if (!user.cpf) throw new HttpError(422, 'Informe seu CPF para gerar o Pix.', 'CPF_REQUIRED');
+  const taxId = env.pagbank.taxId;
+  if (env.pagbank.env !== 'mock' && !taxId) {
+    console.error('[PagBank] PAGBANK_TAX_ID não configurado no .env');
+    throw new HttpError(500, 'Pagamento indisponível no momento. Tente novamente em instantes.');
+  }
 
   const owned = await db('purchases').where({ user_id: userId, novel_id: novelId }).first();
   if (owned) throw new HttpError(409, 'Você já tem acesso a esta novela.', 'ALREADY_OWNED');
@@ -133,7 +137,7 @@ export async function createNovelOrder(userId: number, novelId: number, kind: Or
         description,
         amountCents: amount,
         expiresAt,
-        customer: { name: user.name, email: user.email, taxId: user.cpf, phone: user.phone || undefined },
+        customer: { name: user.name, email: user.email, taxId },
         notificationUrl: notificationUrl(),
       });
       raw = order;

@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CheckCircle2, Copy, Lock, PartyPopper, QrCode, RefreshCw, ShieldCheck } from 'lucide-react';
-import { ApiError, formatBRL, maskCpf, type Novel, type Order, type User } from '@novelas/shared';
+import { ApiError, formatBRL, type Novel, type Order } from '@novelas/shared';
 import { api, media } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useSettings } from '../lib/settings';
@@ -10,22 +10,9 @@ import { Modal, Spinner, useCountdown } from './ui';
 
 type Step = 'form' | 'creating' | 'qr' | 'paid';
 
-/** Validação de CPF no navegador (evita criar a conta e só depois descobrir o erro). */
-function cpfOk(v: string) {
-  const d = v.replace(/\D/g, '');
-  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
-  const calc = (n: number) => {
-    let s = 0;
-    for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i);
-    const r = (s * 10) % 11;
-    return r === 10 ? 0 : r;
-  };
-  return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
-}
-
 /**
- * Checkout Pix em uma tela só: primeiro nome, e-mail, senha e CPF → QR code na hora.
- * Quem já tem conta com CPF vai direto para o QR. kind = 'pack' (próximos episódios) ou 'full'.
+ * Checkout Pix em uma tela só: primeiro nome, e-mail e senha → QR code na hora.
+ * Quem já está logado vai direto para o QR. kind = 'pack' (próximos episódios) ou 'full'.
  */
 export default function CheckoutModal({
   novel,
@@ -44,13 +31,12 @@ export default function CheckoutModal({
   onClose: () => void;
   onPaid?: () => void;
 }) {
-  const { user, setUser, register, login } = useAuth();
+  const { user, register, login } = useAuth();
   const settings = useSettings();
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>('form');
   const [mode, setMode] = useState<'signup' | 'login'>('signup');
   const [acc, setAcc] = useState({ name: '', email: '', password: '' });
-  const [cpf, setCpf] = useState('');
   const [orderId, setOrderId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,17 +46,14 @@ export default function CheckoutModal({
   const amount = kind === 'pack' ? novel.pack_price_cents : novel.effective_price_cents;
   const headline = kind === 'pack' ? `Mais ${packEps} episódio${packEps > 1 ? 's' : ''}` : 'Novela completa';
 
-  const needCpf = !user?.cpf && !(mode === 'login' && !user);
   const needAccount = !user;
 
-  /** Gera o Pix. cpfDigits só quando o usuário acabou de informar. */
-  const create = async (cpfDigits?: string, who?: User | null) => {
+  /** Gera o Pix */
+  const create = async () => {
     setError('');
     setStep('creating');
     try {
-      const o = await api.orders.create(novel.id, cpfDigits, undefined, kind);
-      const u = who ?? user;
-      if (cpfDigits && u) setUser({ ...u, cpf: cpfDigits });
+      const o = await api.orders.create(novel.id, undefined, undefined, kind);
       qc.setQueryData(['order', o.id], o);
       setOrderId(o.id);
       setStep(o.status === 'paid' ? 'paid' : 'qr');
@@ -85,7 +68,7 @@ export default function CheckoutModal({
     }
   };
 
-  // ao abrir: quem já tem conta com CPF vai direto para o QR
+  // ao abrir: quem já está logado vai direto para o QR
   useEffect(() => {
     if (!open) {
       started.current = false;
@@ -95,7 +78,7 @@ export default function CheckoutModal({
     started.current = true;
     setError('');
     setOrderId(null);
-    if (user?.cpf) create();
+    if (user) create();
     else setStep('form');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -103,20 +86,13 @@ export default function CheckoutModal({
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    const digits = cpf.replace(/\D/g, '');
-    if (needCpf && !cpfOk(digits)) {
-      setError('CPF inválido. Confira os números.');
-      return;
-    }
     setBusy(true);
     try {
-      let u: User | null = user;
       if (needAccount) {
-        u = mode === 'signup' ? await register(acc.name.trim(), acc.email, acc.password) : await login(acc.email, acc.password);
+        if (mode === 'signup') await register(acc.name.trim(), acc.email, acc.password);
+        else await login(acc.email, acc.password);
       }
-      if (u?.cpf) await create(undefined, u);
-      else if (digits) await create(digits, u);
-      else setStep('form'); // entrou numa conta sem CPF: o campo aparece agora
+      await create();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -201,12 +177,6 @@ export default function CheckoutModal({
                 required
               />
             </>
-          )}
-          {needCpf && (
-            <div>
-              <input className="input" inputMode="numeric" placeholder="CPF" value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} required />
-              <p className="mt-1 text-[11px] text-white/40">Exigido pelo PagBank para gerar o Pix. Pedimos só uma vez.</p>
-            </div>
           )}
           {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
           <button disabled={busy} className="btn-primary w-full py-4 text-base font-extrabold">

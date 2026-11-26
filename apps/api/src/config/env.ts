@@ -36,6 +36,8 @@ export const env = {
         : process.env.PAGBANK_TOKEN_SANDBOX || process.env.PAGBANK_TOKEN || '',
     baseUrl:
       pagbankEnv === 'production' ? 'https://api.pagseguro.com' : 'https://sandbox.api.pagseguro.com',
+    // CPF/CNPJ do titular da conta PagBank: o PagBank exige um documento no pedido e o site não pede CPF ao comprador
+    taxId: (process.env.PAGBANK_TAX_ID || '').replace(/\D/g, ''),
     pixExpirationMinutes: Number(req('PIX_EXPIRATION_MINUTES', '30')),
   },
   maxVideoSizeMb: Number(req('MAX_VIDEO_SIZE_MB', '2048')),

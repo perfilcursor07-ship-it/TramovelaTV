@@ -98,8 +98,10 @@ export async function createNovelOrder(userId: number, novelId: number, kind: Or
     const until = Math.max(Number(novel.free_episodes || 0), Number(cur?.unlocked_until || 0));
     const left = total - until;
     if (!novel.pack_episodes || !novel.pack_price_cents) throw new HttpError(422, 'Esta novela não tem pacote de episódios.');
-    if (left <= 0) throw new HttpError(409, 'Você já liberou todos os episódios.', 'ALREADY_OWNED');
-    episodesUnlocked = Math.min(Number(novel.pack_episodes), left);
+    if (left <= 0) throw new HttpError(409, 'Você já tem todos os episódios disponíveis. Novos episódios em breve!', 'ALREADY_OWNED');
+    // o pacote vale sempre a quantidade cheia: se alguns episódios ainda não foram enviados,
+    // eles já ficam liberados para quando subirem (quem pagou não paga de novo)
+    episodesUnlocked = Number(novel.pack_episodes);
     amount = Number(novel.pack_price_cents);
   }
 

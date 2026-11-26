@@ -68,6 +68,7 @@ export default function Watch() {
   // prévia: episódio bloqueado que toca alguns segundos antes do paywall
   const previewSec = episode?.locked ? episode.preview_seconds : 0;
   const [previewEnded, setPreviewEnded] = useState(false);
+  const [endReached, setEndReached] = useState(false);
   const unlockedUntil = data?.unlocked_until ?? episodes.length;
   const openCheckout = (kind: UnlockKind) => setCheckout(kind);
   const playable = !!episode && episode.has_video && (!episode.locked || previewSec > 0);
@@ -105,6 +106,7 @@ export default function Watch() {
     lastSaved.current = 0;
     setTime({ cur: 0, dur: 0 });
     setPreviewEnded(false);
+    setEndReached(false);
     if (user && episode && !episode.locked) api.social.progress(episode.id, 0).catch(() => undefined);
   }, [episode?.id, episode?.locked, user]);
 
@@ -267,7 +269,7 @@ export default function Watch() {
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onTimeUpdate={onTimeUpdate}
-              onEnded={() => (previewSec ? setPreviewEnded(true) : next && goTo(next.number))}
+              onEnded={() => (previewSec ? setPreviewEnded(true) : next ? goTo(next.number) : setEndReached(true))}
               onError={() => previewSec && setPreviewEnded(true)}
             />
           ) : (
@@ -358,6 +360,22 @@ export default function Watch() {
                 <span className="shrink-0 font-mono text-[11px] text-white/60">
                   {formatDuration(time.cur) || '0:00'} / {formatDuration(time.dur) || '0:00'}
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* fim do que já foi publicado */}
+          {endReached && !showPaywall && (
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-end bg-gradient-to-t from-black via-black/85 to-black/30 p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center">
+              <div className="w-full max-w-sm animate-float-up">
+                <h2 className="text-2xl font-extrabold">Novos episódios em breve</h2>
+                <p className="mt-2 text-sm text-white/65">
+                  Você assistiu tudo o que já foi publicado. Os episódios que você liberou ficam salvos na sua conta, e você não paga de novo.
+                </p>
+                <div className="mt-5 grid gap-2">
+                  <Link to="/painel/biblioteca" className="btn-primary py-3.5">Minhas novelas</Link>
+                  <Link to="/" className="btn-ghost py-3.5">Ver outras novelas</Link>
+                </div>
               </div>
             </div>
           )}

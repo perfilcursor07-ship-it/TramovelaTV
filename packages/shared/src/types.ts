@@ -37,6 +37,10 @@ export interface Novel {
   likes_count?: number;
   last_episode?: number;
   status?: 'draft' | 'published';
+  /** biblioteca: comprou a novela completa */
+  full_access?: boolean;
+  /** biblioteca: até qual episódio já liberou (null = completa) */
+  unlocked_until?: number | null;
 }
 
 export interface Episode {

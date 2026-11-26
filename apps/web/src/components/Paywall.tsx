@@ -24,7 +24,8 @@ export default function Paywall({
 }) {
   const promo = useCountdown(novel.promo_ends_at);
   const left = Math.max(0, totalEpisodes - unlockedUntil);
-  const packEps = Math.min(novel.pack_episodes || 0, left);
+  // o pacote libera a quantidade cheia, inclusive episódios que ainda vão ser enviados
+  const packEps = left > 0 ? novel.pack_episodes || 0 : 0;
   const hasPack = packEps > 0 && novel.pack_price_cents > 0;
   const from = unlockedUntil + 1;
   const to = unlockedUntil + packEps;

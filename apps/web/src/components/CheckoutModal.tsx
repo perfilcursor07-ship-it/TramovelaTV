@@ -2,17 +2,30 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CheckCircle2, Copy, Lock, PartyPopper, QrCode, RefreshCw, ShieldCheck } from 'lucide-react';
-import { ApiError, formatBRL, maskCpf, maskPhone, type Novel, type Order } from '@novelas/shared';
+import { ApiError, formatBRL, maskCpf, type Novel, type Order, type User } from '@novelas/shared';
 import { api, media } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useSettings } from '../lib/settings';
 import { Modal, Spinner, useCountdown } from './ui';
 
-type Step = 'account' | 'form' | 'creating' | 'qr' | 'paid';
+type Step = 'form' | 'creating' | 'qr' | 'paid';
+
+/** Validação de CPF no navegador (evita criar a conta e só depois descobrir o erro). */
+function cpfOk(v: string) {
+  const d = v.replace(/\D/g, '');
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const calc = (n: number) => {
+    let s = 0;
+    for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i);
+    const r = (s * 10) % 11;
+    return r === 10 ? 0 : r;
+  };
+  return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
+}
 
 /**
- * Checkout Pix em um só lugar: cria a conta (se precisar), pede o CPF, mostra o QR
- * e confirma sozinho. kind = 'pack' (próximos episódios) ou 'full' (novela completa).
+ * Checkout Pix em uma tela só: primeiro nome, e-mail, senha e CPF → QR code na hora.
+ * Quem já tem conta com CPF vai direto para o QR. kind = 'pack' (próximos episódios) ou 'full'.
  */
 export default function CheckoutModal({
   novel,
@@ -38,22 +51,26 @@ export default function CheckoutModal({
   const [mode, setMode] = useState<'signup' | 'login'>('signup');
   const [acc, setAcc] = useState({ name: '', email: '', password: '' });
   const [cpf, setCpf] = useState('');
-  const [phone, setPhone] = useState('');
   const [orderId, setOrderId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const started = useRef(false);
 
-  const packEps = Math.min(novel.pack_episodes || 0, Math.max(0, totalEpisodes - unlockedUntil));
+  const packEps = novel.pack_episodes || 0;
   const amount = kind === 'pack' ? novel.pack_price_cents : novel.effective_price_cents;
-  const headline = kind === 'pack' ? `Liberar mais ${packEps} episódio${packEps > 1 ? 's' : ''}` : 'Novela completa';
+  const headline = kind === 'pack' ? `Mais ${packEps} episódio${packEps > 1 ? 's' : ''}` : 'Novela completa';
 
-  const create = async (withData: boolean) => {
+  const needCpf = !user?.cpf && !(mode === 'login' && !user);
+  const needAccount = !user;
+
+  /** Gera o Pix. cpfDigits só quando o usuário acabou de informar. */
+  const create = async (cpfDigits?: string, who?: User | null) => {
     setError('');
     setStep('creating');
     try {
-      const o = await api.orders.create(novel.id, withData ? cpf : undefined, withData ? phone : undefined, kind);
-      if (withData && user) setUser({ ...user, cpf: cpf.replace(/\D/g, ''), phone: phone.replace(/\D/g, '') || user.phone });
+      const o = await api.orders.create(novel.id, cpfDigits, undefined, kind);
+      const u = who ?? user;
+      if (cpfDigits && u) setUser({ ...u, cpf: cpfDigits });
       qc.setQueryData(['order', o.id], o);
       setOrderId(o.id);
       setStep(o.status === 'paid' ? 'paid' : 'qr');
@@ -68,7 +85,7 @@ export default function CheckoutModal({
     }
   };
 
-  // ao abrir: sem conta → cria conta; sem CPF → formulário; senão gera o Pix direto
+  // ao abrir: quem já tem conta com CPF vai direto para o QR
   useEffect(() => {
     if (!open) {
       started.current = false;
@@ -78,29 +95,28 @@ export default function CheckoutModal({
     started.current = true;
     setError('');
     setOrderId(null);
-    if (!user) {
-      setStep('account');
-      return;
-    }
-    setCpf(user.cpf ? maskCpf(user.cpf) : '');
-    setPhone(user.phone ? maskPhone(user.phone) : '');
-    if (user.cpf) create(false);
+    if (user?.cpf) create();
     else setStep('form');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const submitAccount = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setBusy(true);
     setError('');
+    const digits = cpf.replace(/\D/g, '');
+    if (needCpf && !cpfOk(digits)) {
+      setError('CPF inválido. Confira os números.');
+      return;
+    }
+    setBusy(true);
     try {
-      const u = mode === 'signup' ? await register(acc.name, acc.email, acc.password) : await login(acc.email, acc.password);
-      setCpf(u.cpf ? maskCpf(u.cpf) : '');
-      setPhone(u.phone ? maskPhone(u.phone) : '');
-      if (u.cpf) {
-        // espera o token ser salvo antes de chamar a API
-        setTimeout(() => create(false), 0);
-      } else setStep('form');
+      let u: User | null = user;
+      if (needAccount) {
+        u = mode === 'signup' ? await register(acc.name.trim(), acc.email, acc.password) : await login(acc.email, acc.password);
+      }
+      if (u?.cpf) await create(undefined, u);
+      else if (digits) await create(digits, u);
+      else setStep('form'); // entrou numa conta sem CPF: o campo aparece agora
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -125,11 +141,6 @@ export default function CheckoutModal({
   }, [order?.status]);
 
   const left = useCountdown(order?.status === 'pending' ? order.expires_at : null);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    create(true);
-  };
 
   const copy = async () => {
     if (!order?.qr_text) return;
@@ -163,59 +174,58 @@ export default function CheckoutModal({
         </div>
       </div>
 
-      {step === 'account' && (
-        <form onSubmit={submitAccount} className="space-y-3">
-          <p className="text-sm text-white/60">
-            {mode === 'signup' ? 'Crie sua conta rapidinho para liberar os episódios.' : 'Entre na sua conta para continuar.'}
-          </p>
-          {mode === 'signup' && (
-            <input className="input" placeholder="Seu nome" autoComplete="name" value={acc.name} onChange={(e) => setAcc({ ...acc, name: e.target.value })} required />
-          )}
-          <input className="input" type="email" placeholder="E-mail" autoComplete="email" value={acc.email} onChange={(e) => setAcc({ ...acc, email: e.target.value })} required />
-          <input
-            className="input"
-            type="password"
-            placeholder={mode === 'signup' ? 'Crie uma senha (mín. 6)' : 'Senha'}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            minLength={mode === 'signup' ? 6 : 1}
-            value={acc.password}
-            onChange={(e) => setAcc({ ...acc, password: e.target.value })}
-            required
-          />
-          {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
-          <button disabled={busy} className="btn-primary w-full py-3.5 text-base">
-            {busy ? <Spinner className="h-5 w-5" /> : 'Continuar para o Pix'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === 'signup' ? 'login' : 'signup');
-              setError('');
-            }}
-            className="w-full text-center text-sm text-white/50 hover:text-white"
-          >
-            {mode === 'signup' ? 'Já tenho conta' : 'Criar uma conta nova'}
-          </button>
-        </form>
-      )}
-
       {step === 'form' && (
-        <form onSubmit={submit} className="space-y-4">
-          <p className="text-sm text-white/60">O PagBank exige CPF para gerar o Pix. Pedimos só uma vez.</p>
-          <div>
-            <label className="label">CPF</label>
-            <input className="input" inputMode="numeric" placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} required />
-          </div>
-          <div>
-            <label className="label">Celular (opcional)</label>
-            <input className="input" inputMode="tel" placeholder="(00) 00000-0000" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} />
-          </div>
+        <form onSubmit={submit} className="space-y-3">
+          {needAccount && mode === 'signup' && (
+            <input
+              className="input"
+              placeholder="Primeiro nome"
+              autoComplete="given-name"
+              value={acc.name}
+              onChange={(e) => setAcc({ ...acc, name: e.target.value })}
+              required
+              minLength={2}
+            />
+          )}
+          {needAccount && (
+            <>
+              <input className="input" type="email" placeholder="E-mail" autoComplete="email" value={acc.email} onChange={(e) => setAcc({ ...acc, email: e.target.value })} required />
+              <input
+                className="input"
+                type="password"
+                placeholder={mode === 'signup' ? 'Crie uma senha (mín. 6)' : 'Senha'}
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                minLength={mode === 'signup' ? 6 : 1}
+                value={acc.password}
+                onChange={(e) => setAcc({ ...acc, password: e.target.value })}
+                required
+              />
+            </>
+          )}
+          {needCpf && (
+            <div>
+              <input className="input" inputMode="numeric" placeholder="CPF" value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} required />
+              <p className="mt-1 text-[11px] text-white/40">Exigido pelo PagBank para gerar o Pix. Pedimos só uma vez.</p>
+            </div>
+          )}
           {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
-          <button className="btn-primary w-full py-3.5 text-base">
-            <QrCode className="h-5 w-5" /> Gerar Pix de {formatBRL(amount)}
+          <button disabled={busy} className="btn-primary w-full py-4 text-base font-extrabold">
+            {busy ? <Spinner className="h-5 w-5" /> : <><QrCode className="h-5 w-5" /> Gerar Pix de {formatBRL(amount)}</>}
           </button>
-          <p className="flex items-center justify-center gap-1.5 text-xs text-white/40">
-            <ShieldCheck className="h-3.5 w-3.5" /> Pagamento processado pelo PagBank
+          {needAccount && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === 'signup' ? 'login' : 'signup');
+                setError('');
+              }}
+              className="w-full text-center text-sm text-white/50 hover:text-white"
+            >
+              {mode === 'signup' ? 'Já tenho conta' : 'Criar uma conta nova'}
+            </button>
+          )}
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-white/35">
+            <ShieldCheck className="h-3.5 w-3.5" /> Pagamento seguro pelo PagBank
           </p>
         </form>
       )}
@@ -267,7 +277,7 @@ export default function CheckoutModal({
           ) : (
             <div className="space-y-4 py-6">
               <p className="text-white/70">Este Pix expirou.</p>
-              <button onClick={() => create(false)} className="btn-primary w-full">
+              <button onClick={() => create()} className="btn-primary w-full">
                 <RefreshCw className="h-4 w-4" /> Gerar novo Pix
               </button>
             </div>
@@ -284,8 +294,8 @@ export default function CheckoutModal({
           <h3 className="text-2xl font-extrabold">Liberado!</h3>
           <p className="text-sm text-white/60">
             {kind === 'pack'
-              ? `Os próximos ${packEps} episódios de “${novel.title}” já estão liberados.`
-              : `Todos os episódios de “${novel.title}” já estão liberados.`}
+              ? `Mais ${packEps} episódios de “${novel.title}” foram liberados na sua conta.`
+              : `Todos os episódios de “${novel.title}” foram liberados na sua conta.`}
           </p>
           <button onClick={finish} className="btn-primary mt-2 w-full py-3.5 text-base">
             Continuar assistindo
@@ -294,7 +304,7 @@ export default function CheckoutModal({
       )}
 
       {step !== 'paid' && (
-        <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-white/30">
+        <p className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-white/30">
           <Lock className="h-3 w-3" /> Pagamento único via Pix · sem assinatura
         </p>
       )}

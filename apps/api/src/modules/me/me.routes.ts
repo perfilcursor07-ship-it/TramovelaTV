@@ -17,8 +17,17 @@ meRoutes.get(
     const uid = req.user!.id;
     const count = async (table: string) =>
       Number((await db(table).where({ user_id: uid }).count<{ c: number }[]>({ c: '*' }))[0].c);
+    // novelas completas + novelas liberadas só por pacote (sem contar duas vezes)
+    const libraryCount = async (id: number) => {
+      const full = await count('purchases');
+      const packs = await db('novel_unlocks')
+        .where('user_id', id)
+        .whereNotIn('novel_id', db('purchases').where('user_id', id).select('novel_id'))
+        .count<{ c: number }[]>({ c: '*' });
+      return full + Number(packs[0].c);
+    };
     const [library, favorites, orders, comments] = await Promise.all([
-      count('purchases'),
+      libraryCount(uid),
       count('favorites'),
       count('orders'),
       count('comments'),
@@ -30,12 +39,37 @@ meRoutes.get(
 meRoutes.get(
   '/me/library',
   asyncHandler(async (req, res) => {
-    const rows = await publishedNovelsQuery()
+    const uid = req.user!.id;
+    const lastEp = db.raw(
+      `(select e.number from watch_progress w join episodes e on e.id = w.episode_id
+        where w.user_id = ? and w.novel_id = n.id order by w.updated_at desc limit 1) as last_episode`,
+      [uid],
+    );
+    // novela completa (compra) + novelas liberadas por pacote
+    const full = await publishedNovelsQuery()
       .join('purchases as p', 'p.novel_id', 'n.id')
-      .where('p.user_id', req.user!.id)
-      .orderBy('p.created_at', 'desc')
-      .select('p.created_at as purchased_at');
-    res.json({ data: rows.map((n) => serializeNovel(n, { purchased_at: n.purchased_at })) });
+      .where('p.user_id', uid)
+      .select('p.created_at as unlocked_at', lastEp);
+    const packs = await publishedNovelsQuery()
+      .join('novel_unlocks as u', 'u.novel_id', 'n.id')
+      .where('u.user_id', uid)
+      .select('u.updated_at as unlocked_at', 'u.unlocked_until', lastEp);
+
+    const byId = new Map<number, any>();
+    for (const n of full) byId.set(n.id, { ...n, full_access: true, unlocked_until: null });
+    for (const n of packs) if (!byId.has(n.id)) byId.set(n.id, { ...n, full_access: false });
+    const rows = [...byId.values()].sort((a, b) => new Date(b.unlocked_at).getTime() - new Date(a.unlocked_at).getTime());
+
+    res.json({
+      data: rows.map((n) =>
+        serializeNovel(n, {
+          purchased_at: n.unlocked_at,
+          full_access: n.full_access,
+          unlocked_until: n.full_access ? null : Math.max(Number(n.free_episodes || 0), Number(n.unlocked_until || 0)),
+          last_episode: n.last_episode ?? undefined,
+        }),
+      ),
+    });
   }),
 );
 
